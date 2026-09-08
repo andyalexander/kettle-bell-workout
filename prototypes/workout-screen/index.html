@@ -37,7 +37,7 @@
   .phase-done, .phase-paused { background: var(--done); }
 
   #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 50; }
-  #flash.fire { animation: flash 300ms ease-out; }
+  #flash.fire { animation: flash 450ms ease-out; }
   #flash.fire-final { animation: flash-final 1000ms ease-out; }
   @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
   @keyframes flash-final { 0%,60% { opacity: 1; } 100% { opacity: 0; } }
@@ -235,9 +235,9 @@ const load = s => s.reps + ' × ' + s.weight + 'kg';
 const params = new URLSearchParams(location.search);
 const P = {
   variant: (params.get('variant') || 'D').toUpperCase(),
-  flash: 'white',
-  mode: '40/20',
-  speed: 1,
+  flash: params.get('flash') === 'black' ? 'black' : 'white',
+  mode: MODES[params.get('mode')] ? params.get('mode') : '40/20',
+  speed: Number(params.get('speed')) || 1,
   paused: false,
   aborting: false,
   start: performance.now(),
@@ -475,9 +475,20 @@ function restart() {
 
 /* ---- prototype chrome ---- */
 const $ = id => document.getElementById(id);
+/* Every toggle lives in the URL, so a refresh — or a link sent to the iPad —
+   comes back in the same state instead of silently resetting to 40/20. */
+function syncURL() {
+  const u = new URL(location);
+  u.searchParams.set('variant', P.variant);
+  u.searchParams.set('mode', P.mode);
+  u.searchParams.set('flash', P.flash);
+  u.searchParams.set('speed', P.speed);
+  u.searchParams.set('palette', document.body.classList.contains('bright') ? 'bright' : 'dim');
+  history.replaceState({}, '', u);
+}
 function setVariant(v) {
   P.variant = v; $('vlabel').textContent = v + ' — ' + VARIANTS[v].name;
-  const u = new URL(location); u.searchParams.set('variant', v); history.replaceState({}, '', u);
+  syncURL();
   lastHTML = ''; lastClass = '';
 }
 const keys = () => Object.keys(VARIANTS);
@@ -485,14 +496,14 @@ const cycle = d => { const k = keys(); setVariant(k[(k.indexOf(P.variant) + d + 
 $('prev').onclick = () => cycle(-1);
 $('next').onclick = () => cycle(1);
 $('flashtog').onclick  = e => { P.flash = P.flash === 'white' ? 'black' : 'white';
-                                e.target.textContent = 'flash: ' + P.flash; fireFlash(false); };
+                                e.target.textContent = 'flash: ' + P.flash; syncURL(); fireFlash(false); };
 $('modetog').onclick   = e => { const m = Object.keys(MODES);
                                 P.mode = m[(m.indexOf(P.mode) + 1) % m.length];
-                                e.target.textContent = P.mode; restart(); };
+                                e.target.textContent = P.mode; syncURL(); restart(); };
 $('brighttog').onclick = e => { document.body.classList.toggle('bright');
-                                e.target.textContent = document.body.classList.contains('bright') ? 'bright' : 'dim'; };
+                                e.target.textContent = document.body.classList.contains('bright') ? 'bright' : 'dim'; syncURL(); };
 $('speedtog').onclick  = e => { P.speed = P.speed === 1 ? 4 : P.speed === 4 ? 10 : 1;
-                                e.target.textContent = P.speed + '×'; };
+                                e.target.textContent = P.speed + '×'; syncURL(); };
 $('restart').onclick   = restart;
 function setChrome(open) {
   $('chrome').classList.toggle('hidden', !open);
@@ -519,6 +530,13 @@ addEventListener('keydown', e => {
 })();
 
 setVariant(keys().includes(P.variant) ? P.variant : 'D');
+// reflect the restored state on the buttons
+if (params.get('palette') === 'bright') document.body.classList.add('bright');
+$('flashtog').textContent = 'flash: ' + P.flash;
+$('modetog').textContent = P.mode;
+$('speedtog').textContent = P.speed + '×';
+$('brighttog').textContent = document.body.classList.contains('bright') ? 'bright' : 'dim';
+syncURL();
 setChrome(false);
 requestAnimationFrame(frame);
 </script>
