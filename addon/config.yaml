@@ -1,0 +1,42 @@
+name: Kettlebell Trainer
+version: "0.1.0"
+slug: kettlebell
+description: >-
+  EMOM and interval kettlebell workouts, with results published to
+  Home Assistant over MQTT.
+url: https://github.com/andyalexander/kettle-bell-workout
+arch:
+  - aarch64
+  - amd64
+
+# Required: the base images run S6-Overlay v3, which owns PID 1.
+init: false
+# Start before Core, which consumes the MQTT discovery messages we publish.
+startup: services
+boot: auto
+
+ports:
+  8234/tcp: 8234
+ports_description:
+  8234/tcp: Web interface
+
+webui: "http://[HOST]:[PORT:8234]/"
+watchdog: "http://[HOST]:[PORT:8234]/api/health"
+
+# Broker host, port and credentials come from the Supervisor, never from options.
+services:
+  - mqtt:need
+
+# Stop the app before the backup tar is written, so SQLite is quiescent.
+backup: cold
+
+options:
+  log_level: info
+  mqtt_discovery_prefix: homeassistant
+schema:
+  log_level: "list(debug|info|warning|error)"
+  mqtt_discovery_prefix: str
+
+# Adding an `image:` key here switches Supervisor from building on the Pi to
+# pulling from a registry. Left absent deliberately — see
+# docs/research/addon-packaging.md §3.

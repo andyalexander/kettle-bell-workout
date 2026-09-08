@@ -1,0 +1,51 @@
+[project]
+name = "kettlebell"
+version = "0.1.0"
+description = "EMOM and interval kettlebell workouts, served as a Home Assistant app."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.121",
+    "uvicorn[standard]>=0.38",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.11",
+    "httpx>=0.28",
+    "pyright>=1.1.406",
+    "pytest>=8.4",
+    "ruff>=0.14",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.15"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "kettlebell"
+module-root = "src"
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "D"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D100", "D103"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+# FastAPI registers route handlers by decorator, so they read as unused.
+reportUnusedFunction = false
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
