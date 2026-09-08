@@ -196,6 +196,10 @@ const MAX_PIPS = 10;
 const MODES = {
   '40/20': { work: 40, rest: 20 },
   'EMOM 60': { work: 60, rest: 0 },   // the hard case: green -> green, flash carries the seam alone
+  // TEST RIG ONLY — never a real routine. Rest-less 5s turns reproduce the
+  // EMOM's green -> green -> green seam twelve times faster, so the flash can
+  // be judged without standing there for a minute between boundaries.
+  'FLASH 5s': { work: 5, rest: 0 },
 };
 
 /* ---- the engine from #3: a pure function of elapsed. No ticks, nothing accumulates. ---- */
@@ -482,7 +486,8 @@ $('prev').onclick = () => cycle(-1);
 $('next').onclick = () => cycle(1);
 $('flashtog').onclick  = e => { P.flash = P.flash === 'white' ? 'black' : 'white';
                                 e.target.textContent = 'flash: ' + P.flash; fireFlash(false); };
-$('modetog').onclick   = e => { P.mode = P.mode === '40/20' ? 'EMOM 60' : '40/20';
+$('modetog').onclick   = e => { const m = Object.keys(MODES);
+                                P.mode = m[(m.indexOf(P.mode) + 1) % m.length];
                                 e.target.textContent = P.mode; restart(); };
 $('brighttog').onclick = e => { document.body.classList.toggle('bright');
                                 e.target.textContent = document.body.classList.contains('bright') ? 'bright' : 'dim'; };
