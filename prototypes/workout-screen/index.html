@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>PROTOTYPE — live workout screen (#4)</title>
+<!--
+  THROWAWAY PROTOTYPE — issue #4. Not production code.
+  Three structurally different variants of the live workout screen, switchable
+  via ?variant=A|B|C and the floating bar at the bottom.
+  Engine is the pure schedule() from #3 so the timing is real; everything else is disposable.
+-->
+<style>
+  :root {
+    --bg: #101014; --fg: #ffffff;
+    --prep: #b8760a; --work: #167d3a; --rest: #9e1f28; --done: #101014;
+  }
+  /* "Bright room" palette — lifted luminance so it survives a sunlit garage */
+  body.bright {
+    --prep: #ffb020; --work: #2fd46a; --rest: #ff4d5a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg); color: var(--fg);
+    font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+    transition: background-color 120ms linear;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #screen { position: fixed; inset: 0; display: flex; flex-direction: column; }
+  .phase-prep { background: var(--prep); }
+  .phase-work { background: var(--work); }
+  .phase-rest { background: var(--rest); }
+  .phase-done, .phase-paused { background: var(--done); }
+
+  #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 50; }
+  #flash.fire { animation: flash 300ms ease-out; }
+  #flash.fire-final { animation: flash-final 1000ms ease-out; }
+  @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes flash-final { 0%,60% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ---- shared bits (kept minimal on purpose — variants must be free to disagree) ---- */
+  .phase-word { font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.9; }
+  .huge-num { font-weight: 800; line-height: 0.85; letter-spacing: -0.03em; }
+
+  /* ================= VARIANT A — Clock first ================= */
+  .A { justify-content: space-between; padding: 3vmin; text-align: center; }
+  .A .top { display: flex; justify-content: space-between; font-size: clamp(16px, 3.4vmin, 34px); font-weight: 700; opacity: 0.85; }
+  .A .mid { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 1vmin; }
+  .A .exercise { font-size: clamp(24px, 6vmin, 64px); font-weight: 700; }
+  .A .clock { font-size: clamp(120px, 42vmin, 460px); }
+  .A .load { font-size: clamp(22px, 5.4vmin, 58px); font-weight: 700; opacity: 0.92; }
+  .A .next { font-size: clamp(15px, 3vmin, 30px); opacity: 0.75; padding-bottom: 1vmin; }
+  .A .pausebar {
+    height: 14vh; min-height: 84px; border: none; border-radius: 3vmin;
+    background: rgba(0,0,0,0.28); color: var(--fg);
+    font-size: clamp(20px, 4.4vmin, 44px); font-weight: 800; letter-spacing: 0.1em;
+  }
+
+  /* ================= VARIANT B — Exercise first ================= */
+  .B { padding: 0; }
+  .B .bar { height: 3.5vh; min-height: 18px; background: rgba(0,0,0,0.3); }
+  .B .bar > i { display: block; height: 100%; background: rgba(255,255,255,0.85); }
+  .B .body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 4vmin; gap: 2vmin; }
+  .B .phase-word { font-size: clamp(20px, 4.4vmin, 46px); }
+  .B .exercise { font-size: clamp(40px, 11vmin, 150px); font-weight: 800; line-height: 0.95; letter-spacing: -0.02em; }
+  .B .load { font-size: clamp(32px, 8.5vmin, 110px); font-weight: 800; opacity: 0.95; }
+  .B .foot { display: flex; justify-content: space-between; align-items: flex-end; padding: 4vmin; font-size: clamp(16px, 3.2vmin, 32px); font-weight: 700; opacity: 0.8; }
+  .B .secs { font-size: clamp(44px, 11vmin, 120px); font-weight: 800; opacity: 0.95; }
+
+  /* ================= VARIANT C — Banded / split ================= */
+  .C { padding: 0; }
+  .C .band { padding: 3vmin 4vmin; border-bottom: 3px solid rgba(0,0,0,0.28); }
+  .C .band:last-child { border-bottom: none; }
+  .C .pips { display: flex; gap: 1.2vmin; margin-top: 1.6vmin; }
+  .C .pips > i { flex: 1; height: 2.6vh; min-height: 14px; border-radius: 999px; background: rgba(0,0,0,0.3); }
+  .C .pips > i.done { background: rgba(255,255,255,0.55); }
+  .C .pips > i.now { background: #fff; }
+  .C .meta { font-size: clamp(16px, 3.4vmin, 34px); font-weight: 700; opacity: 0.85; display: flex; justify-content: space-between; }
+  .C .what { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1.5vmin; }
+  .C .exercise { font-size: clamp(30px, 7.5vmin, 92px); font-weight: 800; line-height: 1; }
+  .C .load { font-size: clamp(26px, 6vmin, 68px); font-weight: 700; opacity: 0.9; }
+  .C .clockband { display: flex; align-items: center; justify-content: space-between; }
+  .C .clock { font-size: clamp(80px, 24vmin, 280px); }
+  .C .pausebtn {
+    width: 26vmin; height: 26vmin; max-width: 190px; max-height: 190px; min-width: 110px; min-height: 110px;
+    border-radius: 50%; border: none; background: rgba(0,0,0,0.32); color: var(--fg);
+    font-size: clamp(16px, 3.4vmin, 32px); font-weight: 800; letter-spacing: 0.08em;
+  }
+
+  /* ---- paused / done overlays (shared, deliberately unstyled-ish) ---- */
+  .overlay { position: fixed; inset: 0; background: var(--done); display: flex; flex-direction: column;
+             align-items: center; justify-content: center; gap: 4vmin; text-align: center; padding: 6vmin; z-index: 40; }
+  .overlay h1 { font-size: clamp(40px, 12vmin, 150px); font-weight: 800; letter-spacing: 0.05em; }
+  .overlay p { font-size: clamp(18px, 4vmin, 42px); opacity: 0.85; font-weight: 600; }
+  .overlay .btns { display: flex; gap: 3vmin; flex-wrap: wrap; justify-content: center; }
+  .overlay button { padding: 3.5vmin 7vmin; min-height: 88px; border: none; border-radius: 3vmin;
+                    font-size: clamp(20px, 4.4vmin, 40px); font-weight: 800; background: #fff; color: #000; }
+  .overlay button.ghost { background: rgba(255,255,255,0.16); color: #fff; }
+
+  /* ---- prototype chrome: deliberately ugly so it reads as not-the-design ---- */
+  #chrome { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); z-index: 100;
+            display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap;
+            max-width: calc(100vw - 16px); background: #000; border: 2px solid #f0f;
+            border-radius: 20px; padding: 6px 8px; font-size: 13px; font-family: ui-monospace, monospace; }
+  #chrome button { background: #222; color: #fff; border: 1px solid #555; border-radius: 999px;
+                   padding: 7px 11px; font-size: 13px; font-family: inherit; }
+  #chrome .label { color: #f0f; padding: 0 6px; white-space: nowrap; }
+  #chrome.hidden { display: none; }
+  /* Collapsed to a corner dot: the bar must never sit on top of the pause
+     target, because "can you hit pause?" is one of the questions being asked. */
+  /* Top-centre is the only spot free of content in all three variants — the
+     bottom corners are all pause targets or the turn counter. */
+  #reveal { position: fixed; top: 4px; left: 50%; transform: translateX(-50%); z-index: 101;
+            width: 26px; height: 26px; opacity: 0.45;
+            border-radius: 50%; background: #f0f; color: #000; border: none;
+            font-family: ui-monospace, monospace; font-size: 13px; font-weight: 700; display: none; }
+  #reveal.show { display: block; }
+  video { position: fixed; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
+</style>
+</head>
+<body class="dim">
+
+<div id="screen"></div>
+<div id="flash"></div>
+
+<!-- NoSleep-style wake fallback so the iPad actually stays lit during the across-the-room test -->
+<video id="nosleep" muted playsinline loop></video>
+
+<div id="chrome">
+  <button id="prev">&#8592;</button>
+  <span class="label" id="vlabel">A</span>
+  <button id="next">&#8594;</button>
+  <button id="flashtog">flash: white</button>
+  <button id="modetog">40/20</button>
+  <button id="brighttog">dim</button>
+  <button id="speedtog">1&times;</button>
+  <button id="restart">&#8635;</button>
+  <button id="hide">&#8211;</button>
+</div>
+<button id="reveal">&#9881;</button>
+
+<script>
+/* ============================================================
+   PROTOTYPE — live workout screen. Throwaway. Issue #4.
+   ============================================================ */
+
+const SLOTS = [
+  { name: 'Double kettlebell clean',   reps: 5,  weight: 24 },
+  { name: 'Goblet squat',              reps: 10, weight: 32 },
+  { name: 'Single-arm swing, left',    reps: 12, weight: 24 },
+  { name: 'Single-arm swing, right',   reps: 12, weight: 24 },
+  { name: 'Push press',                reps: 6,  weight: 20 },
+];
+const ROUNDS = 4;
+const PREP_SECONDS = 10;
+
+const MODES = {
+  '40/20': { work: 40, rest: 20 },
+  'EMOM 60': { work: 60, rest: 0 },   // the hard case: green -> green, flash carries the seam alone
+};
+
+/* ---- the engine from #3: a pure function of elapsed. No ticks, nothing accumulates. ---- */
+function schedule(routine, elapsedSeconds) {
+  const totalTurns = routine.slots.length * routine.rounds;
+  const turnLength = routine.work + routine.rest;
+
+  if (elapsedSeconds < PREP_SECONDS) {
+    return { state: 'prep', turnIndex: 0, phase: 'prep',
+             remaining: PREP_SECONDS - elapsedSeconds, totalTurns, turnLength };
+  }
+  const t = elapsedSeconds - PREP_SECONDS;
+  const turnIndex = Math.floor(t / turnLength);
+  if (turnIndex >= totalTurns) {
+    return { state: 'done', turnIndex: totalTurns, phase: 'done', remaining: 0, totalTurns, turnLength };
+  }
+  const within = t - turnIndex * turnLength;
+  const inWork = within < routine.work;
+  return {
+    state: 'running', turnIndex, phase: inWork ? 'work' : 'rest',
+    remaining: inWork ? routine.work - within : turnLength - within,
+    totalTurns, turnLength,
+  };
+}
+
+const slotAt  = i => SLOTS[i % SLOTS.length];
+const roundOf = i => Math.floor(i / SLOTS.length) + 1;
+const fmt = s => { const n = Math.ceil(s - 0.0001); const m = Math.floor(n / 60);
+                   return m > 0 ? m + ':' + String(n % 60).padStart(2, '0') : String(n); };
+const load = s => s.reps + ' × ' + s.weight + 'kg';
+
+/* ---- prototype state ---- */
+const params = new URLSearchParams(location.search);
+const P = {
+  variant: (params.get('variant') || 'A').toUpperCase(),
+  flash: 'white',
+  mode: '40/20',
+  speed: 1,
+  paused: false,
+  aborting: false,
+  start: performance.now(),
+  pausedTotal: 0,
+  pauseStart: 0,
+  lastTurn: -1,
+  finalFired: false,
+};
+const routine = () => ({ slots: SLOTS, rounds: ROUNDS, ...MODES[P.mode] });
+const elapsed = () => {
+  const now = P.paused ? P.pauseStart : performance.now();
+  return ((now - P.start - P.pausedTotal) / 1000) * P.speed;
+};
+
+/* ---- flash ---- */
+const flashEl = document.getElementById('flash');
+function fireFlash(final) {
+  flashEl.style.background = P.flash === 'white' ? '#fff' : '#000';
+  if (final) { flashEl.style.background = getComputedStyle(document.body).getPropertyValue('--work'); }
+  flashEl.className = '';
+  void flashEl.offsetWidth;              // restart the animation
+  flashEl.className = final ? 'fire-final' : 'fire';
+}
+
+/* ============================================================
+   VARIANT A — Clock first.
+   The countdown is the page. Everything else orbits it.
+   Pause is a full-width bar you cannot miss with a chalky thumb.
+   ============================================================ */
+function VariantA(s, r) {
+  const slot = slotAt(s.turnIndex);
+  const nxt  = s.turnIndex + 1 < s.totalTurns ? slotAt(s.turnIndex + 1) : null;
+  const showing = s.phase === 'rest' && nxt ? nxt : slot;
+  return `
+    <div class="top">
+      <span>${s.state === 'prep' ? 'GET READY' : 'TURN ' + (s.turnIndex + 1) + '/' + s.totalTurns}</span>
+      <span>${s.state === 'prep' ? '' : 'ROUND ' + roundOf(s.turnIndex) + '/' + ROUNDS}</span>
+    </div>
+    <div class="mid">
+      <div class="phase-word" style="font-size:clamp(18px,4vmin,42px)">${s.phase.toUpperCase()}</div>
+      <div class="exercise">${showing.name}</div>
+      <div class="clock huge-num">${fmt(s.remaining)}</div>
+      <div class="load">${load(showing)}</div>
+    </div>
+    <div class="next">${s.phase !== 'rest' && nxt ? 'NEXT: ' + nxt.name + ' · ' + load(nxt) : '&nbsp;'}</div>
+    <button class="pausebar" data-act="pause">PAUSE</button>`;
+}
+
+/* ============================================================
+   VARIANT B — Exercise first.
+   Mid-set you know time is passing; what you forget is WHAT and HOW HEAVY.
+   Time is demoted to a depleting bar. Rest restructures the page rather
+   than merely recolouring it. The whole page is the pause target.
+   ============================================================ */
+function VariantB(s, r) {
+  const slot = slotAt(s.turnIndex);
+  const nxt  = s.turnIndex + 1 < s.totalTurns ? slotAt(s.turnIndex + 1) : null;
+  const full = s.phase === 'prep' ? PREP_SECONDS : (s.phase === 'work' ? r.work : r.rest);
+  const pct  = Math.max(0, Math.min(100, (s.remaining / full) * 100));
+
+  const centre = s.phase === 'rest'
+    ? `<div class="phase-word">REST</div>
+       <div class="exercise" style="opacity:.55;font-size:clamp(24px,6vmin,64px)">NEXT UP</div>
+       <div class="exercise">${nxt ? nxt.name : 'Finish'}</div>
+       <div class="load">${nxt ? load(nxt) : ''}</div>`
+    : `<div class="phase-word">${s.phase === 'prep' ? 'GET READY' : 'WORK'}</div>
+       <div class="exercise">${slot.name}</div>
+       <div class="load">${load(slot)}</div>`;
+
+  return `
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="body" data-act="pause">${centre}</div>
+    <div class="foot" data-act="pause">
+      <span>${s.state === 'prep' ? '' : (s.turnIndex + 1) + '/' + s.totalTurns + ' · ROUND ' + roundOf(s.turnIndex)}</span>
+      <span class="secs">${fmt(s.remaining)}</span>
+    </div>`;
+}
+
+/* ============================================================
+   VARIANT C — Banded.
+   Three fixed zones with visible seams: progress / what / clock.
+   Work vs rest changes the LAYOUT (the bands swap weight), so the
+   distinction survives even if the colour doesn't read.
+   Pause is a fat circle, thumb-parked bottom-right.
+   ============================================================ */
+function VariantC(s, r) {
+  const slot = slotAt(s.turnIndex);
+  const nxt  = s.turnIndex + 1 < s.totalTurns ? slotAt(s.turnIndex + 1) : null;
+  const inRound = s.turnIndex % SLOTS.length;
+  const pips = SLOTS.map((_, i) =>
+    `<i class="${i < inRound ? 'done' : i === inRound ? 'now' : ''}"></i>`).join('');
+
+  const resting = s.phase === 'rest';
+  return `
+    <div class="band">
+      <div class="meta">
+        <span>${s.state === 'prep' ? 'GET READY' : 'ROUND ' + roundOf(s.turnIndex) + ' / ' + ROUNDS}</span>
+        <span>${s.state === 'prep' ? '' : 'TURN ' + (s.turnIndex + 1) + ' / ' + s.totalTurns}</span>
+      </div>
+      <div class="pips">${pips}</div>
+    </div>
+    <div class="band what" style="flex:${resting ? 2 : 3}">
+      <div class="phase-word" style="font-size:clamp(18px,4vmin,40px)">${resting ? 'NEXT UP' : s.phase.toUpperCase()}</div>
+      <div class="exercise">${resting ? (nxt ? nxt.name : 'Finish') : slot.name}</div>
+      <div class="load">${resting ? (nxt ? load(nxt) : '') : load(slot)}</div>
+    </div>
+    <div class="band clockband" style="flex:${resting ? 3 : 2}">
+      <div class="clock huge-num">${fmt(s.remaining)}</div>
+      <button class="pausebtn" data-act="pause">PAUSE</button>
+    </div>`;
+}
+
+const VARIANTS = {
+  A: { name: 'Clock first',    render: VariantA },
+  B: { name: 'Exercise first', render: VariantB },
+  C: { name: 'Banded',         render: VariantC },
+};
+
+/* ---- render loop ---- */
+const screen = document.getElementById('screen');
+let lastHTML = '', lastClass = '';
+
+function frame() {
+  const r = routine();
+  const s = schedule(r, elapsed());
+
+  // turn-boundary flash (prep -> turn 1 counts as a boundary)
+  if (s.state === 'running' && s.turnIndex !== P.lastTurn) {
+    if (P.lastTurn !== -1 || s.turnIndex === 0) fireFlash(false);
+    P.lastTurn = s.turnIndex;
+  }
+  if (s.state === 'done' && !P.finalFired) { P.finalFired = true; fireFlash(true); }
+
+  let cls, html;
+  if (P.aborting) {
+    cls = 'phase-paused';
+    html = `<div class="overlay"><h1>ABORT?</h1><p>This workout won't be saved.</p>
+      <div class="btns"><button data-act="abort-yes">Abort</button>
+      <button class="ghost" data-act="abort-no">Keep going</button></div></div>`;
+  } else if (P.paused) {
+    cls = 'phase-paused';
+    html = `<div class="overlay"><h1>PAUSED</h1><p>Turn ${Math.min(s.turnIndex + 1, s.totalTurns)} of ${s.totalTurns}</p>
+      <div class="btns"><button data-act="resume">Resume</button>
+      <button class="ghost" data-act="abort">Abort</button></div></div>`;
+  } else if (s.state === 'done') {
+    const vol = SLOTS.reduce((a, x) => a + x.reps * x.weight, 0) * ROUNDS;
+    cls = 'phase-done';
+    html = `<div class="overlay"><h1>DONE</h1>
+      <p>${s.totalTurns} turns · ${vol.toLocaleString()} kg · ${fmt(PREP_SECONDS + s.totalTurns * s.turnLength - PREP_SECONDS)} min-ish</p>
+      <div class="btns"><button data-act="restart">Again</button></div></div>`;
+  } else {
+    cls = 'phase-' + s.phase;
+    html = VARIANTS[P.variant].render(s, r);
+  }
+
+  const wrapCls = cls + ' ' + P.variant;
+  if (wrapCls !== lastClass) { screen.className = wrapCls; lastClass = wrapCls; }
+  if (html !== lastHTML) { screen.innerHTML = html; lastHTML = html; }
+  requestAnimationFrame(frame);
+}
+
+/* ---- interactions ---- */
+screen.addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (!act) return;
+  if (act === 'pause')     { P.paused = true;  P.pauseStart = performance.now(); }
+  if (act === 'resume')    { P.pausedTotal += performance.now() - P.pauseStart; P.paused = false; }
+  if (act === 'abort')     { P.aborting = true; }
+  if (act === 'abort-no')  { P.aborting = false; }
+  if (act === 'abort-yes' || act === 'restart') restart();
+});
+function restart() {
+  P.start = performance.now(); P.pausedTotal = 0; P.paused = false;
+  P.aborting = false; P.lastTurn = -1; P.finalFired = false;
+}
+
+/* ---- prototype chrome ---- */
+const $ = id => document.getElementById(id);
+function setVariant(v) {
+  P.variant = v; $('vlabel').textContent = v + ' — ' + VARIANTS[v].name;
+  const u = new URL(location); u.searchParams.set('variant', v); history.replaceState({}, '', u);
+  lastHTML = ''; lastClass = '';
+}
+const keys = () => Object.keys(VARIANTS);
+const cycle = d => { const k = keys(); setVariant(k[(k.indexOf(P.variant) + d + k.length) % k.length]); };
+$('prev').onclick = () => cycle(-1);
+$('next').onclick = () => cycle(1);
+$('flashtog').onclick  = e => { P.flash = P.flash === 'white' ? 'black' : 'white';
+                                e.target.textContent = 'flash: ' + P.flash; fireFlash(false); };
+$('modetog').onclick   = e => { P.mode = P.mode === '40/20' ? 'EMOM 60' : '40/20';
+                                e.target.textContent = P.mode; restart(); };
+$('brighttog').onclick = e => { document.body.classList.toggle('bright');
+                                e.target.textContent = document.body.classList.contains('bright') ? 'bright' : 'dim'; };
+$('speedtog').onclick  = e => { P.speed = P.speed === 1 ? 4 : P.speed === 4 ? 10 : 1;
+                                e.target.textContent = P.speed + '×'; };
+$('restart').onclick   = restart;
+function setChrome(open) {
+  $('chrome').classList.toggle('hidden', !open);
+  $('reveal').classList.toggle('show', !open);
+}
+$('hide').onclick   = () => setChrome(false);
+$('reveal').onclick = () => setChrome(true);
+
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === 'ArrowLeft')  cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+  if (e.key === ' ') { e.preventDefault(); P.paused ? (P.pausedTotal += performance.now() - P.pauseStart, P.paused = false)
+                                                    : (P.paused = true, P.pauseStart = performance.now()); }
+});
+
+/* ---- keep the iPad awake for the across-the-room test (the #3 video fallback) ---- */
+(async () => {
+  try { if (navigator.wakeLock) { await navigator.wakeLock.request('screen'); return; } } catch (_) {}
+  const v = $('nosleep');
+  v.src = 'data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAr1tZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE0OCByMjYwMSBhMGNkN2QzIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAxNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbAAAAAAAAAAAAAAAAA==';
+  v.play().catch(() => {});
+  addEventListener('touchstart', () => v.play().catch(() => {}), { once: true });
+})();
+
+setVariant(keys().includes(P.variant) ? P.variant : 'A');
+setChrome(false);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
