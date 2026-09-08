@@ -30,7 +30,10 @@ Switch with the magenta bar at the bottom, the `?variant=` param, or ← / →.
 Judged on screen; **still to be confirmed at training distance, in the room.**
 
 - **Layout: D.** A's big clock won on "the thing I'm most focused on is the time". C's pips won for showing the round at a glance. C's round pause button beat A's full-width bar.
-- **Flash: white.** Black was rejected.
+- **Flash: white, and 450ms rather than 300ms.** Black was rejected; the longer
+  flash is easier to see. This **supersedes the ~300ms in #3**, which was a paper
+  judgement — judged here on rest-less 5-second turns, where boundaries come thick
+  and fast and a flash has the least room to hide.
 - **Palette: dim.** Less glaring, and the white flash reads better against it.
 - **The counter was wrong.** "Turn 2 of 20 / Round 1 of 4" split one idea across two corners and leaked the engine's flat turn index onto the screen. It is now one left-aligned line — **ROUND 2 OF 4 · EXERCISE 3** — in the vocabulary `CONTEXT.md` already defines.
 - **Pips degrade at `MAX_PIPS = 10`.** Above that they become slivers, so they are dropped and the counter gains "OF 12" instead. The information survives; only the visual does not.
