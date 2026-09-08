@@ -91,15 +91,48 @@
     font-size: clamp(16px, 3.4vmin, 32px); font-weight: 800; letter-spacing: 0.08em;
   }
 
+  /* ================= VARIANT D — the synthesis =================
+     A's dominant clock + C's pips and round pause button, with the exercise
+     promoted to the top and the turn counter re-cut as round + exercise. */
+  .D { padding: 0; }
+  .D .head { padding: 3vmin 4vmin 0; }
+  .D .meta { font-size: clamp(18px, 4.2vmin, 44px); font-weight: 700; opacity: 0.88;
+             letter-spacing: 0.04em; text-transform: uppercase; }
+  .D .pips { display: flex; gap: 1.2vmin; margin: 1.8vmin 0 2.6vmin; }
+  .D .pips > i { flex: 1; height: 2.4vh; min-height: 12px; border-radius: 999px; background: rgba(0,0,0,0.3); }
+  .D .pips > i.done { background: rgba(255,255,255,0.55); }
+  .D .pips > i.now { background: #fff; }
+  .D .pips.none { display: none; }
+  /* Two lines maximum. The JS fitter shrinks to fit first; this clamp is only
+     the backstop for a name so long that even the floor size overflows. */
+  .D .exercise { font-size: clamp(34px, 9.6vmin, 112px); font-weight: 800; line-height: 0.98;
+                 letter-spacing: -0.025em; display: -webkit-box; -webkit-line-clamp: 2;
+                 -webkit-box-orient: vertical; overflow: hidden; }
+  .D .load { font-size: clamp(26px, 6.6vmin, 74px); font-weight: 700; opacity: 0.94; margin-top: 1.2vmin; }
+  .D .mid { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .D .phase-word { font-size: clamp(18px, 4vmin, 42px); }
+  .D .clock { font-size: clamp(120px, 42vmin, 460px); }
+  .D .foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 3vmin; padding: 4vmin; }
+  .D .next { font-size: clamp(15px, 3vmin, 30px); opacity: 0.75; flex: 1; }
+  .D .pausebtn {
+    width: 26vmin; height: 26vmin; max-width: 190px; max-height: 190px; min-width: 110px; min-height: 110px;
+    flex: none; border-radius: 50%; border: none; background: rgba(0,0,0,0.32); color: var(--fg);
+    font-size: clamp(16px, 3.4vmin, 32px); font-weight: 800; letter-spacing: 0.08em; }
+
   /* ---- paused / done overlays (shared, deliberately unstyled-ish) ---- */
   .overlay { position: fixed; inset: 0; background: var(--done); display: flex; flex-direction: column;
              align-items: center; justify-content: center; gap: 4vmin; text-align: center; padding: 6vmin; z-index: 40; }
   .overlay h1 { font-size: clamp(40px, 12vmin, 150px); font-weight: 800; letter-spacing: 0.05em; }
   .overlay p { font-size: clamp(18px, 4vmin, 42px); opacity: 0.85; font-weight: 600; }
   .overlay .btns { display: flex; gap: 3vmin; flex-wrap: wrap; justify-content: center; }
-  .overlay button { padding: 3.5vmin 7vmin; min-height: 88px; border: none; border-radius: 3vmin;
-                    font-size: clamp(20px, 4.4vmin, 40px); font-weight: 800; background: #fff; color: #000; }
-  .overlay button.ghost { background: rgba(255,255,255,0.16); color: #fff; }
+  /* Round, matching the pause button — one button shape for the whole app. */
+  .overlay button {
+    width: 30vmin; height: 30vmin; max-width: 200px; max-height: 200px;
+    min-width: 120px; min-height: 120px; padding: 2vmin; flex: none;
+    border: none; border-radius: 50%; background: #fff; color: #000;
+    font-size: clamp(17px, 3.6vmin, 34px); font-weight: 800; line-height: 1.15;
+    letter-spacing: 0.06em; text-transform: uppercase; }
+  .overlay button.ghost { background: transparent; color: #fff; box-shadow: inset 0 0 0 3px rgba(255,255,255,0.5); }
 
   /* ---- prototype chrome: deliberately ugly so it reads as not-the-design ---- */
   #chrome { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); z-index: 100;
@@ -114,10 +147,10 @@
      target, because "can you hit pause?" is one of the questions being asked. */
   /* Top-centre is the only spot free of content in all three variants — the
      bottom corners are all pause targets or the turn counter. */
-  #reveal { position: fixed; top: 4px; left: 50%; transform: translateX(-50%); z-index: 101;
-            width: 26px; height: 26px; opacity: 0.45;
+  #reveal { position: fixed; top: 3px; right: 3px; z-index: 101;
+            width: 22px; height: 22px; opacity: 0.4;
             border-radius: 50%; background: #f0f; color: #000; border: none;
-            font-family: ui-monospace, monospace; font-size: 13px; font-weight: 700; display: none; }
+            font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; display: none; }
   #reveal.show { display: block; }
   video { position: fixed; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
 </style>
@@ -157,6 +190,8 @@ const SLOTS = [
 ];
 const ROUNDS = 4;
 const PREP_SECONDS = 10;
+// Above this many slots the pip row stops being readable and degrades to text.
+const MAX_PIPS = 10;
 
 const MODES = {
   '40/20': { work: 40, rest: 20 },
@@ -195,7 +230,7 @@ const load = s => s.reps + ' × ' + s.weight + 'kg';
 /* ---- prototype state ---- */
 const params = new URLSearchParams(location.search);
 const P = {
-  variant: (params.get('variant') || 'A').toUpperCase(),
+  variant: (params.get('variant') || 'D').toUpperCase(),
   flash: 'white',
   mode: '40/20',
   speed: 1,
@@ -311,11 +346,70 @@ function VariantC(s, r) {
     </div>`;
 }
 
+/* ============================================================
+   VARIANT D — the synthesis, from the round-one verdict.
+   A's dominant clock, C's pips and round pause button, exercise promoted
+   to the top and enlarged, and the turn counter re-cut as the thing a
+   human actually tracks: which round, and which exercise within it.
+   ============================================================ */
+function VariantD(s, r) {
+  const slot = slotAt(s.turnIndex);
+  const nxt  = s.turnIndex + 1 < s.totalTurns ? slotAt(s.turnIndex + 1) : null;
+  const resting = s.phase === 'rest';
+  const showing = resting && nxt ? nxt : slot;
+  const inRound = s.turnIndex % SLOTS.length;
+
+  // Pips degrade to the text counter when a routine has too many slots to read.
+  const pipped = SLOTS.length <= MAX_PIPS;
+  const pips = pipped
+    ? SLOTS.map((_, i) => `<i class="${i < inRound ? 'done' : i === inRound ? 'now' : ''}"></i>`).join('')
+    : '';
+
+  const meta = s.state === 'prep'
+    ? 'GET READY'
+    : `ROUND ${roundOf(s.turnIndex)} OF ${ROUNDS} &nbsp;·&nbsp; EXERCISE ${inRound + 1}` +
+      (pipped ? '' : ` OF ${SLOTS.length}`);
+
+  return `
+    <div class="head">
+      <div class="meta">${meta}</div>
+      <div class="pips ${pipped ? '' : 'none'}">${pips}</div>
+      <div class="exercise">${resting ? 'NEXT: ' : ''}${showing.name}</div>
+      <div class="load">${load(showing)}</div>
+    </div>
+    <div class="mid">
+      <div class="phase-word">${s.phase === 'prep' ? 'GET READY' : s.phase.toUpperCase()}</div>
+      <div class="clock huge-num">${fmt(s.remaining)}</div>
+    </div>
+    <div class="foot">
+      <div class="next">${!resting && nxt ? 'NEXT: ' + nxt.name + ' · ' + load(nxt) : '&nbsp;'}</div>
+      <button class="pausebtn" data-act="pause">PAUSE</button>
+    </div>`;
+}
+
 const VARIANTS = {
   A: { name: 'Clock first',    render: VariantA },
   B: { name: 'Exercise first', render: VariantB },
   C: { name: 'Banded',         render: VariantC },
+  D: { name: 'Synthesis',      render: VariantD },
 };
+
+/* Cap the exercise name at two lines. Shrink it to fit rather than ellipsising:
+   a truncated name is useless at across-the-room distance, which is the whole
+   point. Only if it still won't fit at the floor size does the CSS clamp bite. */
+function fitExercise() {
+  const el = screen.querySelector('.exercise');
+  if (!el) return;
+  el.style.fontSize = '';                       // reset to the CSS clamp
+  const base = parseFloat(getComputedStyle(el).fontSize);
+  const lh = parseFloat(getComputedStyle(el).lineHeight) || base * 0.98;
+  const maxH = lh * 2 + 2;
+  let size = base;
+  while (el.scrollHeight > maxH && size > base * 0.6) {
+    size -= base * 0.04;
+    el.style.fontSize = size + 'px';
+  }
+}
 
 /* ---- render loop ---- */
 const screen = document.getElementById('screen');
@@ -336,8 +430,8 @@ function frame() {
   if (P.aborting) {
     cls = 'phase-paused';
     html = `<div class="overlay"><h1>ABORT?</h1><p>This workout won't be saved.</p>
-      <div class="btns"><button data-act="abort-yes">Abort</button>
-      <button class="ghost" data-act="abort-no">Keep going</button></div></div>`;
+      <div class="btns"><button data-act="abort-no">Keep going</button>
+      <button class="ghost" data-act="abort-yes">Abort</button></div></div>`;
   } else if (P.paused) {
     cls = 'phase-paused';
     html = `<div class="overlay"><h1>PAUSED</h1><p>Turn ${Math.min(s.turnIndex + 1, s.totalTurns)} of ${s.totalTurns}</p>
@@ -356,7 +450,7 @@ function frame() {
 
   const wrapCls = cls + ' ' + P.variant;
   if (wrapCls !== lastClass) { screen.className = wrapCls; lastClass = wrapCls; }
-  if (html !== lastHTML) { screen.innerHTML = html; lastHTML = html; }
+  if (html !== lastHTML) { screen.innerHTML = html; lastHTML = html; fitExercise(); }
   requestAnimationFrame(frame);
 }
 
@@ -419,7 +513,7 @@ addEventListener('keydown', e => {
   addEventListener('touchstart', () => v.play().catch(() => {}), { once: true });
 })();
 
-setVariant(keys().includes(P.variant) ? P.variant : 'A');
+setVariant(keys().includes(P.variant) ? P.variant : 'D');
 setChrome(false);
 requestAnimationFrame(frame);
 </script>
