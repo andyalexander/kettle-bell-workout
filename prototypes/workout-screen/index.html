@@ -231,12 +231,26 @@ const fmt = s => { const n = Math.ceil(s - 0.0001); const m = Math.floor(n / 60)
                    return m > 0 ? m + ':' + String(n % 60).padStart(2, '0') : String(n); };
 const load = s => s.reps + ' × ' + s.weight + 'kg';
 
+/* Mode names contain a slash and a space, which makes for a miserable URL to
+   type on a phone. Accept short aliases: ?mode=flash5 is the 5-second rig. */
+function resolveMode(raw) {
+  if (!raw) return '40/20';
+  if (MODES[raw]) return raw;
+  const norm = x => String(x).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const n = norm(raw);
+  const exact = Object.keys(MODES).find(k => norm(k) === n);
+  if (exact) return exact;
+  const alias = { flash: 'FLASH 5s', flash5: 'FLASH 5s', '5s': 'FLASH 5s',
+                  emom: 'EMOM 60', intervals: '40/20' };
+  return alias[n] || '40/20';
+}
+
 /* ---- prototype state ---- */
 const params = new URLSearchParams(location.search);
 const P = {
   variant: (params.get('variant') || 'D').toUpperCase(),
   flash: params.get('flash') === 'black' ? 'black' : 'white',
-  mode: MODES[params.get('mode')] ? params.get('mode') : '40/20',
+  mode: resolveMode(params.get('mode')),
   speed: Number(params.get('speed')) || 1,
   paused: false,
   aborting: false,
