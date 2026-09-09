@@ -2,11 +2,13 @@
  * Keeping the iPad awake mid-workout.
  *
  * `navigator.wakeLock` is `[SecureContext]` and the add-on serves plain HTTP on
- * a LAN IP, so on the iPad the API is *absent* rather than flaky (issue #3).
- * We feature-detect it anyway — it lights up for free the day TLS is enabled
- * (#12) — and otherwise fall back to a muted, looping, inline video, the
- * NoSleep.js mechanism. That fallback is undocumented behaviour and may be
- * withdrawn, which is why the one-time Auto-Lock hint below also exists.
+ * a LAN IP by default, so on the iPad the API is *absent* rather than flaky
+ * (issue #3). We feature-detect it, so it lights up on its own once the add-on's
+ * `ssl` option is turned on (#12); otherwise we fall back to a muted, looping,
+ * inline video, the NoSleep.js mechanism. That fallback is undocumented
+ * behaviour, was far more dependable on older iOS than it is now, and may be
+ * withdrawn — which is why the one-time Auto-Lock hint below is the real answer
+ * on plain HTTP. See `addon/DOCS.md`, "Keeping the screen awake".
  */
 
 // 2x2, one second, silent. Small enough that Vite inlines it as a data URI.

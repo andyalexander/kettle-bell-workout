@@ -21,7 +21,30 @@ fi
 
 # 0.0.0.0, not 127.0.0.1: the container has its own network namespace, and the
 # published port would otherwise be unreachable from the LAN.
-exec python -m uvicorn kettlebell.main:app \
-  --host 0.0.0.0 \
-  --port 8234 \
+uvicorn_args=(
+  --host 0.0.0.0
+  --port 8234
   --log-level "${KB_LOG_LEVEL}"
+)
+
+# TLS is a property of how the process is launched, so it lives here and never
+# reaches the app. Off by default; on, it makes the page a secure context and
+# the Screen Wake Lock API appears. See DOCS.md, "Keeping the screen awake".
+if bashio::config.true 'ssl'; then
+  certfile="/ssl/$(bashio::config 'certfile')"
+  keyfile="/ssl/$(bashio::config 'keyfile')"
+
+  # Refuse to start rather than quietly serving HTTP: a silent fallback would
+  # leave the screen dimming mid-workout while the app looked healthy.
+  for required in "${certfile}" "${keyfile}"; do
+    if ! bashio::fs.file_exists "${required}"; then
+      bashio::exit.nok \
+        "SSL is on but ${required} was not found. Put the certificate and key in the /ssl folder and check the 'certfile' and 'keyfile' options, or turn 'ssl' off."
+    fi
+  done
+
+  uvicorn_args+=(--ssl-certfile "${certfile}" --ssl-keyfile "${keyfile}")
+  bashio::log.info "TLS enabled — serving https on port 8234."
+fi
+
+exec python -m uvicorn kettlebell.main:app "${uvicorn_args[@]}"

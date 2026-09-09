@@ -7,6 +7,8 @@ MQTT.
 - `CONTEXT.md` — the domain glossary. Code, issues and docs use these words.
 - `docs/adr/` — decisions with consequences.
 - `addon/` — the app: packaging plus the two source trees it builds from.
+- `addon/DOCS.md` — the user documentation shown in Home Assistant, including why
+  the iPad screen dims mid-workout and the optional TLS route that fixes it.
 
 ## Layout
 
