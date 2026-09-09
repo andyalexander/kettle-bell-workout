@@ -30,6 +30,14 @@ is 20 turns.
 
 **Round** — one pass through every slot of a routine, in order. Routines cycle.
 
+**Phase** — what a turn is doing at an instant: **work** or **rest**. A turn is
+`work_seconds + rest_seconds`, so a rest-less EMOM has one phase per turn. The
+timer also reports **prep** and **done**, which sit outside every turn.
+
+**Prep** — the fixed 10-second countdown before turn 1, announcing the first slot.
+It is an app constant, not part of a routine, and sits **outside** the session, so
+it never inflates a session's recorded duration.
+
 **Session** — one workout actually performed by one profile. Holds a **frozen
 prescription**.
 
