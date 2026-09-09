@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Literal, TypedDict
 
 from fastapi import FastAPI
@@ -9,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from kettlebell import __version__
 from kettlebell.config import Settings
+from kettlebell.db import open_database
 
 __all__ = ["app", "create_app"]
 
@@ -23,7 +26,20 @@ class Health(TypedDict):
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the ASGI app, serving the front end when it has been built."""
     resolved = Settings.from_env() if settings is None else settings
-    app = FastAPI(title="Kettlebell Trainer", version=__version__)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+        """Create and migrate the database before the first request arrives.
+
+        This is the only moment migrations run, so an add-on update that ships a
+        new migration applies it on the restart that follows. How request handlers
+        get a connection is the API surface's problem, not this one's.
+        """
+        connection = open_database(resolved.database_path)
+        connection.close()
+        yield
+
+    app = FastAPI(title="Kettlebell Trainer", version=__version__, lifespan=lifespan)
 
     @app.get("/api/health")
     async def health() -> Health:

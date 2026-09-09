@@ -23,6 +23,8 @@ dist/
 
 # Data — SQLite lives in the add-on's /data volume, never in the repo
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 data/
