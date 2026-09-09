@@ -1,7 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
 
-import pytest
-
 from kettlebell import metrics
 from kettlebell.models import Prescription, PrescriptionSlot, Session
 
@@ -39,7 +37,7 @@ def _session(
 def test_progress_of_a_profile_that_has_never_trained() -> None:
     progress = metrics.profile_progress([])
     assert progress.sessions == 0
-    assert progress.volume == 0.0
+    assert progress.time_under_load == 0
     assert progress.last_workout is None
     assert progress.last_routine is None
 
@@ -54,17 +52,35 @@ def test_progress_folds_lifetime_totals_and_the_latest_workout() -> None:
 
     progress = metrics.profile_progress([older, newer])
     assert progress.sessions == 2
-    assert progress.volume == pytest.approx(1360.0 + 680.0)
+    # Four rounds of two slots at 60s, then two rounds of the same: 480 + 240.
+    assert progress.time_under_load == 480 + 240
     assert progress.last_routine == "Friday"
-    assert progress.last_volume == pytest.approx(680.0)
+    assert progress.last_time_under_load == 240
     assert progress.last_workout == newer.ended_at
 
 
-def test_volume_since_ignores_older_sessions() -> None:
+def test_time_under_load_since_ignores_older_sessions() -> None:
     older = _session(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
     newer = _session(2, datetime(2026, 9, 8, 7, 0, tzinfo=UTC))
     cutoff = datetime(2026, 9, 5, tzinfo=UTC)
-    assert metrics.volume_since([older, newer], cutoff) == pytest.approx(1360.0)
+    assert metrics.time_under_load_since([older, newer], cutoff) == 480
+
+
+def test_a_repless_prescription_still_has_time_under_load() -> None:
+    """The whole point of retiring volume (ADR-0002): carries still count."""
+    carry = PrescriptionSlot(
+        position=0, exercise_id=9, exercise_name="Farmer's carry", reps=None, weight=16
+    )
+    prescription = Prescription(
+        routine_id=2,
+        routine_name="Carries",
+        rounds=3,
+        work_seconds=40,
+        rest_seconds=20,
+        slots=(carry,),
+    )
+    session = _session(1, datetime(2026, 9, 8, 7, 0, tzinfo=UTC), prescription)
+    assert metrics.profile_progress([session]).time_under_load == 120
 
 
 def test_days_since_last_workout() -> None:
@@ -122,7 +138,8 @@ def test_exercise_series_keys_on_the_frozen_id_and_keeps_the_old_name() -> None:
         "Swing (renamed)",
     ]
     assert [point.top_weight for point in swings] == [24.0, 32.0]
-    assert swings[0].volume == pytest.approx(960.0)
+    # First session: 4 rounds at 60s on that one slot.
+    assert swings[0].time_under_load == 240
 
 
 def test_repeated_slots_of_one_exercise_sum_within_a_session() -> None:
@@ -145,5 +162,6 @@ def test_repeated_slots_of_one_exercise_sum_within_a_session() -> None:
     )
     session = _session(1, datetime(2026, 9, 1, tzinfo=UTC), twice)
     point = metrics.exercise_series([session])[1][0]
-    assert point.volume == pytest.approx(2 * (10 * 24 + 8 * 32))
+    # Two slots of the same exercise, two rounds, 40s of work each.
+    assert point.time_under_load == 2 * 2 * 40
     assert point.top_weight == 32.0

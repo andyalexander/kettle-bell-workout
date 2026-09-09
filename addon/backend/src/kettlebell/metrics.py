@@ -22,7 +22,7 @@ __all__ = [
     "days_since_last_workout",
     "exercise_series",
     "profile_progress",
-    "volume_since",
+    "time_under_load_since",
 ]
 
 
@@ -36,10 +36,10 @@ class ProfileProgress:
     """
 
     sessions: int
-    volume: float
+    time_under_load: int
     last_workout: datetime | None
     last_routine: str | None
-    last_volume: float | None
+    last_time_under_load: int | None
 
 
 def profile_progress(sessions: Sequence[Session]) -> ProfileProgress:
@@ -47,29 +47,31 @@ def profile_progress(sessions: Sequence[Session]) -> ProfileProgress:
     if not sessions:
         return ProfileProgress(
             sessions=0,
-            volume=0.0,
+            time_under_load=0,
             last_workout=None,
             last_routine=None,
-            last_volume=None,
+            last_time_under_load=None,
         )
     latest = max(sessions, key=lambda session: session.started_at)
     return ProfileProgress(
         sessions=len(sessions),
-        volume=sum(session.prescription.total_volume for session in sessions),
+        time_under_load=sum(
+            session.prescription.time_under_load for session in sessions
+        ),
         last_workout=latest.ended_at,
         last_routine=latest.prescription.routine_name,
-        last_volume=latest.prescription.total_volume,
+        last_time_under_load=latest.prescription.time_under_load,
     )
 
 
-def volume_since(sessions: Iterable[Session], start: datetime) -> float:
-    """Volume in kg over every session that started at or after `start`.
+def time_under_load_since(sessions: Iterable[Session], start: datetime) -> int:
+    """Seconds of work over every session that started at or after `start`.
 
     The rolling weekly and monthly figures the app charts are this function with
     a different `start`; neither is published to Home Assistant.
     """
     return sum(
-        session.prescription.total_volume
+        session.prescription.time_under_load
         for session in sessions
         if session.started_at >= start
     )
@@ -108,37 +110,39 @@ class ExercisePoint:
 
     when: datetime
     exercise_name: str
-    volume: float
+    time_under_load: int
     top_weight: float
 
 
 def exercise_series(
     sessions: Iterable[Session],
 ) -> dict[int, list[ExercisePoint]]:
-    """Per-exercise volume and top weight over time, oldest first.
+    """Per-exercise time under load and top weight over time, oldest first.
 
     Keyed on the `exercise_id` frozen into the prescription, so a trend survives
-    a rename; the name carried on each point is the one used at the time.
+    a rename; the name carried on each point is the one used at the time. A slot
+    contributes `rounds * work_seconds`, so an exercise appearing twice in one
+    routine counts twice — which is what actually happened to the athlete.
     """
     series: dict[int, list[ExercisePoint]] = defaultdict(list)
     for session in sessions:
-        rounds = session.prescription.rounds
-        totals: dict[int, tuple[str, float, float]] = {}
+        per_slot = session.prescription.rounds * session.prescription.work_seconds
+        totals: dict[int, tuple[str, int, float]] = {}
         for slot in session.prescription.slots:
-            name, volume, top = totals.get(
-                slot.exercise_id, (slot.exercise_name, 0.0, 0.0)
+            name, seconds, top = totals.get(
+                slot.exercise_id, (slot.exercise_name, 0, 0.0)
             )
             totals[slot.exercise_id] = (
                 name,
-                volume + rounds * slot.reps * slot.weight,
+                seconds + per_slot,
                 max(top, slot.weight),
             )
-        for exercise_id, (name, volume, top) in totals.items():
+        for exercise_id, (name, seconds, top) in totals.items():
             series[exercise_id].append(
                 ExercisePoint(
                     when=session.started_at,
                     exercise_name=name,
-                    volume=volume,
+                    time_under_load=seconds,
                     top_weight=top,
                 )
             )

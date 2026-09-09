@@ -30,7 +30,9 @@ CREATE TABLE exercise (
     name TEXT NOT NULL UNIQUE,
     video_url TEXT,
     notes TEXT,
-    default_reps INTEGER NOT NULL CHECK (default_reps > 0),
+    -- Reps are optional: a carry or a get-up is prescribed by load and the work
+    -- window alone, and a nominal count would be a fiction the UI then shows.
+    default_reps INTEGER CHECK (default_reps IS NULL OR default_reps > 0),
     default_weight REAL NOT NULL CHECK (default_weight >= 0),
     archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))
 );
@@ -48,7 +50,7 @@ CREATE TABLE slot (
     routine_id INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
     position INTEGER NOT NULL CHECK (position >= 0),
     exercise_id INTEGER NOT NULL REFERENCES exercise(id),
-    reps INTEGER NOT NULL CHECK (reps > 0),
+    reps INTEGER CHECK (reps IS NULL OR reps > 0),
     weight REAL NOT NULL CHECK (weight >= 0),
     UNIQUE (routine_id, position)
 );

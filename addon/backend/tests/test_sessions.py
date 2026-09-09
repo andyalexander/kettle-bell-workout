@@ -39,9 +39,9 @@ def test_totals_fold_over_every_turn(
     db: sqlite3.Connection, andrew: Profile, emom: Routine
 ) -> None:
     prescription = sessions.freeze_prescription(db, andrew.id, emom.id)
-    # 4 rounds x (10 reps + 5 reps), and 4 x (10x24 + 5x20) kg.
-    assert prescription.total_reps == 60
-    assert prescription.total_volume == pytest.approx(1360.0)
+    # 4 rounds x 2 slots = 8 turns, each a 60-second work window.
+    assert prescription.turns == 8
+    assert prescription.time_under_load == 480
 
 
 def test_a_recorded_session_survives_editing_the_routine(
@@ -62,7 +62,7 @@ def test_a_recorded_session_survives_editing_the_routine(
     assert stored is not None
     assert stored.prescription == prescription
     assert stored.prescription.slots[0].exercise_name == "Two-hand swing"
-    assert stored.prescription.total_volume == pytest.approx(1360.0)
+    assert stored.prescription.time_under_load == 480
 
 
 def test_history_survives_deleting_the_routine(
@@ -128,3 +128,27 @@ def test_a_routine_without_slots_cannot_be_started(
         _ = sessions.freeze_prescription(db, andrew.id, empty.id)
     with pytest.raises(LookupError):
         _ = sessions.freeze_prescription(db, andrew.id, 9999)
+
+
+def test_a_repless_prescription_survives_the_round_trip(
+    db: sqlite3.Connection, andrew: Profile
+) -> None:
+    """Reps are optional end to end — through the join, the JSON and back."""
+    carry = store.add_exercise(
+        db, "Farmer's carry", default_reps=None, default_weight=16
+    )
+    routine = store.add_routine(
+        db, "Carries", rounds=3, work_seconds=40, rest_seconds=20
+    )
+    _ = store.set_slots(
+        db, routine.id, [store.SlotSpec(exercise_id=carry.id, reps=None, weight=16)]
+    )
+
+    prescription = sessions.freeze_prescription(db, andrew.id, routine.id)
+    assert prescription.slots[0].reps is None
+
+    recorded = sessions.record_session(db, andrew.id, prescription, STARTED, ENDED)
+    stored = sessions.get_session(db, recorded.id)
+    assert stored is not None
+    assert stored.prescription == prescription
+    assert stored.prescription.time_under_load == 120

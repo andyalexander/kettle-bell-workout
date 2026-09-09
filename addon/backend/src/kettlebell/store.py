@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import SupportsInt, cast
 
 from kettlebell.db import transaction
 from kettlebell.models import Exercise, Profile, Routine, Slot
@@ -40,10 +41,13 @@ __all__ = [
 
 @dataclass(frozen=True, slots=True)
 class SlotSpec:
-    """A slot as the caller wants it, before it has an id."""
+    """A slot as the caller wants it, before it has an id.
+
+    `reps` is None for a movement prescribed by load and the clock alone.
+    """
 
     exercise_id: int
-    reps: int
+    reps: int | None
     weight: float
 
 
@@ -134,7 +138,7 @@ def add_exercise(
     connection: sqlite3.Connection,
     name: str,
     *,
-    default_reps: int,
+    default_reps: int | None,
     default_weight: float,
     video_url: str | None = None,
     notes: str | None = None,
@@ -142,7 +146,8 @@ def add_exercise(
     """Add a movement to the shared library.
 
     The defaults only prefill a slot in the routine builder; they are never read
-    at workout time.
+    at workout time. `default_reps` is None for a movement that has no honest rep
+    count — a carry is bounded by the work window, not by a number.
     """
     with transaction(connection):
         cursor = connection.execute(
@@ -191,7 +196,7 @@ def update_exercise(
     exercise_id: int,
     *,
     name: str,
-    default_reps: int,
+    default_reps: int | None,
     default_weight: float,
     video_url: str | None = None,
     notes: str | None = None,
@@ -351,7 +356,7 @@ def _to_exercise(row: sqlite3.Row) -> Exercise:
         name=str(row["name"]),
         video_url=_optional_text(row["video_url"]),
         notes=_optional_text(row["notes"]),
-        default_reps=int(row["default_reps"]),
+        default_reps=_optional_int(row["default_reps"]),
         default_weight=float(row["default_weight"]),
         archived=bool(row["archived"]),
     )
@@ -373,10 +378,14 @@ def _to_slot(row: sqlite3.Row) -> Slot:
         routine_id=int(row["routine_id"]),
         position=int(row["position"]),
         exercise_id=int(row["exercise_id"]),
-        reps=int(row["reps"]),
+        reps=_optional_int(row["reps"]),
         weight=float(row["weight"]),
     )
 
 
 def _optional_text(value: object) -> str | None:
     return None if value is None else str(value)
+
+
+def _optional_int(value: object) -> int | None:
+    return None if value is None else int(cast(SupportsInt, value))

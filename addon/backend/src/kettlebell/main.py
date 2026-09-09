@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from kettlebell import __version__
 from kettlebell.config import Settings
 from kettlebell.db import open_database
+from kettlebell.seed import seed
 
 __all__ = ["app", "create_app"]
 
@@ -34,9 +35,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         This is the only moment migrations run, so an add-on update that ships a
         new migration applies it on the restart that follows. How request handlers
         get a connection is the API surface's problem, not this one's.
+
+        Seeding follows migration and is insert-if-absent, so a fresh `/data` on
+        the Pi comes up with something trainable and an existing one is untouched.
         """
         connection = open_database(resolved.database_path)
-        connection.close()
+        try:
+            seed(connection)
+        finally:
+            connection.close()
         yield
 
     app = FastAPI(title="Kettlebell Trainer", version=__version__, lifespan=lifespan)

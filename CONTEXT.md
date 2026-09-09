@@ -10,17 +10,17 @@ docs name a domain concept, they use the term as defined here.
 no passwords. Carries a name and an avatar image.
 
 **Exercise** — a movement in the shared library, e.g. "Double kettlebell clean".
-Carries an optional form-video URL, notes, and default reps/weight used only to
-prefill a slot in the routine builder. Exercises are **archived**, never deleted —
-their names live on inside frozen prescriptions.
+Carries an optional form-video URL, notes, and a default weight and *optional*
+default reps, used only to prefill a slot in the routine builder. Exercises are
+**archived**, never deleted — their names live on inside frozen prescriptions.
 
 **Routine** — a reusable workout shape: an ordered list of slots, a round count, and
 one timing config. Routines are **shared** across profiles; the load is personal
 (see *weight override*).
 
-**Slot** — one position in a routine: an exercise, target reps, and a baseline
-weight. A slot's identity is its **position**, so the same exercise may appear many
-times in one routine.
+**Slot** — one position in a routine: an exercise, a baseline weight, and an
+**optional** rep target. A slot's identity is its **position**, so the same exercise
+may appear many times in one routine.
 
 **Weight override** — a profile's own weight for a given slot, replacing the slot's
 baseline. This is what lets one shared routine suit different people.
@@ -42,10 +42,13 @@ it never inflates a session's recorded duration.
 prescription**.
 
 **Prescription** — the frozen record of what a session prescribed: routine name,
-rounds, timing, and for every slot the exercise id, exercise name, reps and resolved
-weight. Written once when the workout starts and never changed.
+rounds, timing, and for every slot the exercise id, exercise name, optional reps and
+resolved weight. Written once when the workout starts and never changed.
 
-**Volume** — reps × weight, summed over every turn. Reported in kg.
+**Time under load** — turns × `work_seconds`, in seconds; rest and prep excluded.
+The one figure defined for every prescription there is, so it is what Home Assistant
+is told about. It superseded **volume** (reps × weight), which reps being optional
+left reading zero for a routine of carries — see ADR-0002.
 
 ## Rules the model holds to
 
@@ -56,8 +59,10 @@ weight. Written once when the workout starts and never changed.
    override never rewrites a past session. See ADR-0001.
 3. **Every session completes.** v1 assumes workouts run to the end; totals fold over
    the whole prescription. Abandoned workouts are not modelled yet.
-4. **Reps are literal.** There is no per-side concept — unilateral work is expressed
-   by how exercises are named and slots laid out.
+4. **Reps are optional, and literal when present.** A movement bounded by the work
+   window and the bell — a carry, a get-up — carries no rep count, and the screen
+   then shows only the weight. Where reps do appear there is no per-side concept:
+   unilateral work is expressed by how exercises are named and slots laid out.
 5. **Weights are kg** throughout.
 6. **`/data/kettlebell.db` is the entire application state**, avatars included, so
    `backup: cold` puts all of it into Home Assistant's backups.

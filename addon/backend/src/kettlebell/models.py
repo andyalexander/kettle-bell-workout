@@ -38,7 +38,7 @@ class Exercise:
     name: str
     video_url: str | None
     notes: str | None
-    default_reps: int
+    default_reps: int | None
     default_weight: float
     archived: bool
 
@@ -59,13 +59,17 @@ class Routine:
 
 @dataclass(frozen=True, slots=True)
 class Slot:
-    """One position in a routine: an exercise, target reps, and a baseline weight."""
+    """One position in a routine: an exercise, an optional rep target, a weight.
+
+    `reps` is None when the movement is prescribed by load and the work window
+    alone — a carry, a get-up — and the screen then shows only the weight.
+    """
 
     id: int
     routine_id: int
     position: int
     exercise_id: int
-    reps: int
+    reps: int | None
     weight: float
 
 
@@ -80,7 +84,7 @@ class PrescriptionSlot:
     position: int
     exercise_id: int
     exercise_name: str
-    reps: int
+    reps: int | None
     weight: float
 
 
@@ -96,14 +100,20 @@ class Prescription:
     slots: tuple[PrescriptionSlot, ...] = field(default_factory=tuple)
 
     @property
-    def total_reps(self) -> int:
-        """Reps over every turn: one pass through the slots, times the rounds."""
-        return self.rounds * sum(slot.reps for slot in self.slots)
+    def turns(self) -> int:
+        """Turns in the whole workout: one pass through the slots, times rounds."""
+        return self.rounds * len(self.slots)
 
     @property
-    def total_volume(self) -> float:
-        """Volume in kg: reps times weight, summed over every turn."""
-        return self.rounds * sum(slot.reps * slot.weight for slot in self.slots)
+    def time_under_load(self) -> int:
+        """Seconds of work prescribed: turns times `work_seconds`, rest excluded.
+
+        This is the figure published to Home Assistant (ADR-0002). Volume — reps
+        times weight — used to hold this place, but reps are optional, so volume
+        silently reads zero for a routine of carries. Time under load is defined
+        for every prescription there is.
+        """
+        return self.turns * self.work_seconds
 
 
 @dataclass(frozen=True, slots=True)

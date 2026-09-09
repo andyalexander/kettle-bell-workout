@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, SupportsInt, cast
 
 from kettlebell.db import transaction
 from kettlebell.models import Prescription, PrescriptionSlot, Session
@@ -70,7 +70,7 @@ def freeze_prescription(
                 position=int(row["position"]),
                 exercise_id=int(row["exercise_id"]),
                 exercise_name=str(row["exercise_name"]),
-                reps=int(row["reps"]),
+                reps=_optional_int(row["reps"]),
                 weight=float(row["weight"]),
             )
             for row in rows
@@ -173,7 +173,7 @@ def _prescription_from_json(payload: str) -> Prescription:
                 position=int(slot["position"]),
                 exercise_id=int(slot["exercise_id"]),
                 exercise_name=str(slot["exercise_name"]),
-                reps=int(slot["reps"]),
+                reps=_optional_int(slot["reps"]),
                 weight=float(slot["weight"]),
             )
             for slot in slots
@@ -189,6 +189,11 @@ def _to_session(row: sqlite3.Row) -> Session:
         ended_at=_from_iso(str(row["ended_at"])),
         prescription=_prescription_from_json(str(row["prescription_json"])),
     )
+
+
+def _optional_int(value: object) -> int | None:
+    """Reps are optional, in the row and in the frozen JSON alike."""
+    return None if value is None else int(cast(SupportsInt, value))
 
 
 def _to_iso(moment: datetime) -> str:
