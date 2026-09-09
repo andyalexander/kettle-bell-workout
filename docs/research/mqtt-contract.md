@@ -1034,12 +1034,13 @@ How it must fail:
 
 ## 7. Open questions this research did not settle
 
-1. **The broker's provenance.** `addon-packaging.md` §9 flagged this and it is still open: everything
-   in §5 assumes the broker on `192.168.2.10:1883` is the official Mosquitto add-on. If it is a
-   broker running elsewhere on the LAN, `services: [mqtt:need]` registers nothing, `run.sh` takes
-   the `else` branch, and we would need explicit host/port/credential options after all — which
-   reopens the "never put credentials in `options`" rule. Check `Settings → Add-ons` for "Mosquitto
-   broker".
+1. ~~**The broker's provenance.**~~ **Settled — not an open question.**
+   `addon-packaging.md` §9 flagged this, but it was closed by
+   [#8](https://github.com/andyalexander/kettle-bell-workout/issues/8) while this research was in
+   flight: the broker on `192.168.2.10:1883` **is** the official Mosquitto add-on. So §5 stands as
+   written — `core-mosquitto:1883`, `services: [mqtt:need]`, `bashio::services`, and no credentials
+   in add-on `options`. Nothing here needs re-checking.
+
 2. **`sessions` unit.** `unit_of_measurement: "sessions"` is not a Home Assistant-recognised unit; it
    is a free-text label, which HA permits for sensors without a `device_class`. I did not find a
    primary-source statement blessing or forbidding arbitrary unit strings on a `total` sensor —
