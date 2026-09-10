@@ -12,7 +12,7 @@ no passwords. Carries a name and an avatar image.
 **Exercise** — a movement in the shared library, e.g. "Double kettlebell clean".
 Carries an optional form-video URL, notes, and a default weight and *optional*
 default reps, used only to prefill a slot in the routine builder. Exercises are
-**archived**, never deleted — their names live on inside frozen prescriptions.
+**archived**, never deleted — their names live on inside recorded workouts.
 
 **Routine** — a reusable workout shape: an ordered list of slots, a round count, and
 one timing config. Routines are **shared** across profiles; the load is personal
@@ -25,40 +25,48 @@ may appear many times in one routine.
 **Weight override** — a profile's own weight for a given slot, replacing the slot's
 baseline. This is what lets one shared routine suit different people.
 
-**Turn** — one slot performed once, within one round. A routine of 5 slots × 4 rounds
-is 20 turns.
+**Turn** — one activity performed once, within one round. A workout of 5 activities ×
+3 rounds is 15 turns.
 
-**Round** — one pass through every slot of a routine, in order. Routines cycle.
+**Round** — one pass through every activity of a workout, in order. Workouts cycle.
 
 **Phase** — what a turn is doing at an instant: **work** or **rest**. A turn is
 `work_seconds + rest_seconds`, so a rest-less EMOM has one phase per turn. The
 timer also reports **prep** and **done**, which sit outside every turn.
 
-**Prep** — the fixed 10-second countdown before turn 1, announcing the first slot.
-It is an app constant, not part of a routine, and sits **outside** the session, so
-it never inflates a session's recorded duration.
+**Prep** — the fixed 10-second countdown before turn 1, announcing the first
+activity.
+It is an app constant, not part of a routine, and sits **outside** the workout, so
+it never inflates a workout's recorded duration.
 
-**Session** — one workout actually performed by one profile. Holds a **frozen
-prescription**.
+**Workout** — one routine, as one profile is to perform it on one occasion: the
+routine's name, rounds and timing, and an ordered list of **activities**. **Fixed**
+when it starts, **recorded** when it completes, never changed after. History is the
+recorded workouts.
+_Avoid_: session, prescription
 
-**Prescription** — the frozen record of what a session prescribed: routine name,
-rounds, timing, and for every slot the exercise id, exercise name, optional reps and
-resolved weight. Written once when the workout starts and never changed.
+**Activity** — one entry in a workout, taken from one slot of its routine: an
+exercise, at the profile's resolved weight, with optional reps. A slot is to a
+routine what an activity is to a workout; performing an activity once in a round is
+a turn. Not the same as an exercise — one exercise may be two activities at two
+weights, and an activity keeps the exercise's name as it was on the day.
+_Avoid_: exercise (for an entry in a workout)
 
 **Time under load** — turns × `work_seconds`, in seconds; rest and prep excluded.
-The one figure defined for every prescription there is, so it is what Home Assistant
+The one figure defined for every workout there is, so it is what Home Assistant
 is told about. It superseded **volume** (reps × weight), which reps being optional
 left reading zero for a routine of carries — see ADR-0002.
 
 ## Rules the model holds to
 
 1. **Routines are shared; load is personal.** At workout start each slot's weight
-   resolves as `override ?? slot.weight`. A prescription never contains an
-   unresolved override.
+   resolves as `override ?? slot.weight`. A workout never contains an unresolved
+   override.
 2. **History is a snapshot.** Editing a routine, renaming an exercise or changing an
-   override never rewrites a past session. See ADR-0001.
-3. **Every session completes.** v1 assumes workouts run to the end; totals fold over
-   the whole prescription. Abandoned workouts are not modelled yet.
+   override never rewrites a recorded workout. See ADR-0001.
+3. **Only a completed workout is recorded.** v1 assumes workouts run to the end;
+   totals fold over the whole workout. Starting one writes nothing, and abandoned
+   workouts are not modelled yet.
 4. **Reps are optional, and literal when present.** A movement bounded by the work
    window and the bell — a carry, a get-up — carries no rep count, and the screen
    then shows only the weight. Where reps do appear there is no per-side concept:
@@ -71,6 +79,6 @@ left reading zero for a routine of carries — see ADR-0002.
 
 - Weight: kilograms, stored as a number.
 - Timestamps: UTC, stored ISO-8601.
-- A prescription stores `exercise_id` alongside the exercise name — the id joins
-  per-exercise trends across sessions, the name keeps old rows readable after a
+- An activity stores `exercise_id` alongside the exercise name — the id joins
+  per-exercise trends across workouts, the name keeps old rows readable after a
   rename or archive.
