@@ -10,8 +10,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from kettlebell import __version__
+from kettlebell.api import OnRecorded, router
 from kettlebell.config import Settings
 from kettlebell.db import open_database
+from kettlebell.models import RecordedWorkout
 from kettlebell.seed import seed
 
 __all__ = ["app", "create_app"]
@@ -24,8 +26,14 @@ class Health(TypedDict):
     version: str
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build the ASGI app, serving the front end when it has been built."""
+def create_app(
+    settings: Settings | None = None, *, on_recorded: OnRecorded | None = None
+) -> FastAPI:
+    """Build the ASGI app, serving the front end when it has been built.
+
+    `on_recorded` is told about each workout new to the database, after the
+    commit and after the response — the seam MQTT publishing (#15) fills.
+    """
     resolved = Settings.from_env() if settings is None else settings
 
     @asynccontextmanager
@@ -53,6 +61,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Report liveness; wired to `watchdog` in the app's `config.yaml`."""
         return {"status": "ok", "version": __version__}
 
+    app.state.database_path = resolved.database_path
+    app.state.on_recorded = _publish_nothing if on_recorded is None else on_recorded
+    app.include_router(router)
+
+    # Mounted last: a mount at `/` swallows every path registered after it.
     if resolved.static_dir.is_dir():
         app.mount(
             "/",
@@ -61,6 +74,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     return app
+
+
+def _publish_nothing(_: RecordedWorkout) -> None:
+    """Stand in for MQTT publishing until #15 lands."""
 
 
 app = create_app()

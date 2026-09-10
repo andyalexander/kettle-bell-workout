@@ -28,6 +28,7 @@ __all__ = [
     "get_routine",
     "list_exercises",
     "list_profiles",
+    "list_routine_exercise_names",
     "list_routines",
     "list_slots",
     "list_weight_overrides",
@@ -252,6 +253,24 @@ def list_routines(connection: sqlite3.Connection) -> list[Routine]:
     """Every routine, by name — routines are shared across profiles."""
     rows = connection.execute("SELECT * FROM routine ORDER BY name").fetchall()
     return [_to_routine(row) for row in rows]
+
+
+def list_routine_exercise_names(connection: sqlite3.Connection) -> dict[int, list[str]]:
+    """Each routine's exercise names in slot order, keyed by routine id.
+
+    A routine with no slots has no entry. These are the library's current names,
+    for choosing a routine — history never reads them, since a workout carries its
+    own.
+    """
+    rows = connection.execute(
+        "SELECT s.routine_id, e.name FROM slot s"
+        " JOIN exercise e ON e.id = s.exercise_id"
+        " ORDER BY s.routine_id, s.position"
+    ).fetchall()
+    names: dict[int, list[str]] = {}
+    for row in rows:
+        names.setdefault(int(row["routine_id"]), []).append(str(row["name"]))
+    return names
 
 
 def get_routine(connection: sqlite3.Connection, routine_id: int) -> Routine | None:

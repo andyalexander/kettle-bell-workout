@@ -67,16 +67,17 @@ CREATE TABLE weight_override (
 -- column NULL would lose the only link back to the shape that was trained.
 -- `snapshot_json` is the workout as it was fixed at start: routine name, rounds,
 -- timing and every activity.
+-- `(profile_id, started_at)` is unique because the iPad stamps the start and retries
+-- a finish until confirmed (ADR-0003): a repeat must find the row, not add one.
 CREATE TABLE workout (
     id INTEGER PRIMARY KEY,
     profile_id INTEGER NOT NULL REFERENCES profile(id) ON DELETE CASCADE,
     routine_id INTEGER,
     started_at TEXT NOT NULL,
     ended_at TEXT NOT NULL,
-    snapshot_json TEXT NOT NULL
+    snapshot_json TEXT NOT NULL,
+    UNIQUE (profile_id, started_at)
 );
-
-CREATE INDEX workout_by_profile_time ON workout (profile_id, started_at);
 """
 
 MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA,)
@@ -92,8 +93,13 @@ def open_database(path: Path) -> sqlite3.Connection:
 
 
 def connect(path: Path) -> sqlite3.Connection:
-    """Open a connection with the pragmas every caller depends on."""
-    connection = sqlite3.connect(path, isolation_level=None)
+    """Open a connection with the pragmas every caller depends on.
+
+    `check_same_thread` is off because FastAPI may open a request's connection in
+    one threadpool thread and run the handler in another. Each connection still
+    belongs to exactly one request, so it is never used from two threads at once.
+    """
+    connection = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     _ = connection.execute("PRAGMA foreign_keys = ON")
     _ = connection.execute("PRAGMA journal_mode = WAL")

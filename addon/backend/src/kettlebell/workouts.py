@@ -23,6 +23,7 @@ from kettlebell.db import transaction
 from kettlebell.models import Activity, RecordedWorkout, Workout
 
 __all__ = [
+    "find_workout",
     "fix_workout",
     "get_workout",
     "list_workouts",
@@ -128,6 +129,21 @@ def list_workouts(
     return [_to_recorded(row) for row in rows]
 
 
+def find_workout(
+    connection: sqlite3.Connection, profile_id: int, started_at: datetime
+) -> RecordedWorkout | None:
+    """Find the workout this profile started at `started_at`, if it is recorded.
+
+    `(profile_id, started_at)` is unique, and this is how a retried finish is
+    recognised for what it is (ADR-0003).
+    """
+    row = connection.execute(
+        "SELECT * FROM workout WHERE profile_id = ? AND started_at = ?",
+        (profile_id, _to_iso(started_at)),
+    ).fetchone()
+    return None if row is None else _to_recorded(row)
+
+
 def get_workout(
     connection: sqlite3.Connection, workout_id: int
 ) -> RecordedWorkout | None:
@@ -199,10 +215,14 @@ def _optional_int(value: object) -> int | None:
 
 
 def _to_iso(moment: datetime) -> str:
-    """Store UTC, ISO-8601. Home Assistant needs the offset to be explicit (#6)."""
+    """Store UTC, ISO-8601. Home Assistant needs the offset to be explicit (#6).
+
+    Always to the millisecond — the precision the iPad stamps — so one instant has
+    exactly one spelling, and a retried finish produces the identical key.
+    """
     if moment.tzinfo is None:
         raise ValueError("timestamps must be timezone-aware")
-    return moment.astimezone(UTC).isoformat()
+    return moment.astimezone(UTC).isoformat(timespec="milliseconds")
 
 
 def _from_iso(text: str) -> datetime:
