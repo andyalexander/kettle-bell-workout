@@ -1,24 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import { PREP_SECONDS, schedule, totalTurns, turnSeconds } from "./schedule";
-import type { Prescription } from "./schedule";
+import type { WorkoutTiming } from "./schedule";
 
-/** 5 slots x 4 rounds of 40 work / 20 rest: 20 turns of 60s, 1200s of session. */
-const intervals: Prescription = {
-  slotCount: 5,
+/** 5 activities x 4 rounds of 40 work / 20 rest: 20 turns of 60s, 1200s of workout. */
+const intervals: WorkoutTiming = {
+  activityCount: 5,
   rounds: 4,
   workSeconds: 40,
   restSeconds: 20,
 };
 
 /** The hard case: a rest-less EMOM, where every turn is a work phase. */
-const emom: Prescription = { slotCount: 3, rounds: 2, workSeconds: 60, restSeconds: 0 };
+const emom: WorkoutTiming = { activityCount: 3, rounds: 2, workSeconds: 60, restSeconds: 0 };
 
 /** Elapsed seconds at the start of turn `n` (zero-based), prep included. */
-const atTurn = (p: Prescription, n: number) => PREP_SECONDS + n * turnSeconds(p);
+const atTurn = (t: WorkoutTiming, n: number) => PREP_SECONDS + n * turnSeconds(t);
 
 describe("shape", () => {
-  it("counts a turn per slot per round", () => {
+  it("counts a turn per activity per round", () => {
     expect(totalTurns(intervals)).toBe(20);
     expect(totalTurns(emom)).toBe(6);
   });
@@ -28,8 +28,8 @@ describe("shape", () => {
     expect(turnSeconds(emom)).toBe(60);
   });
 
-  it("rejects a prescription that cannot be performed", () => {
-    expect(() => schedule({ ...intervals, slotCount: 0 }, 0)).toThrow(RangeError);
+  it("rejects a workout that cannot be performed", () => {
+    expect(() => schedule({ ...intervals, activityCount: 0 }, 0)).toThrow(RangeError);
     expect(() => schedule({ ...intervals, rounds: 0 }, 0)).toThrow(RangeError);
     expect(() => schedule({ ...intervals, workSeconds: 0 }, 0)).toThrow(RangeError);
     expect(() => schedule({ ...intervals, restSeconds: -1 }, 0)).toThrow(RangeError);
@@ -43,8 +43,8 @@ describe("prep", () => {
     expect(schedule(intervals, 9.5)).toMatchObject({ phase: "prep", secondsRemaining: 0.5 });
   });
 
-  it("shows the first turn's slot, because prep announces what is coming", () => {
-    expect(schedule(intervals, 0)).toMatchObject({ turn: 0, round: 1, slotIndex: 0 });
+  it("shows the first turn's activity, because prep announces what is coming", () => {
+    expect(schedule(intervals, 0)).toMatchObject({ turn: 0, round: 1, activityIndex: 0 });
   });
 
   it("treats a clock reading before the start as prep, not as an error", () => {
@@ -53,7 +53,7 @@ describe("prep", () => {
 });
 
 describe("turns", () => {
-  it("starts the session on the tick prep ends", () => {
+  it("starts the workout on the tick prep ends", () => {
     expect(schedule(intervals, PREP_SECONDS)).toMatchObject({
       phase: "work",
       turn: 0,
@@ -92,9 +92,18 @@ describe("turns", () => {
   });
 
   it("reports the round and the position within it, not just a flat index", () => {
-    expect(schedule(intervals, atTurn(intervals, 4))).toMatchObject({ round: 1, slotIndex: 4 });
-    expect(schedule(intervals, atTurn(intervals, 5))).toMatchObject({ round: 2, slotIndex: 0 });
-    expect(schedule(intervals, atTurn(intervals, 19))).toMatchObject({ round: 4, slotIndex: 4 });
+    expect(schedule(intervals, atTurn(intervals, 4))).toMatchObject({
+      round: 1,
+      activityIndex: 4,
+    });
+    expect(schedule(intervals, atTurn(intervals, 5))).toMatchObject({
+      round: 2,
+      activityIndex: 0,
+    });
+    expect(schedule(intervals, atTurn(intervals, 19))).toMatchObject({
+      round: 4,
+      activityIndex: 4,
+    });
   });
 
   it("is a pure function of elapsed, so any reading lands in the same place", () => {

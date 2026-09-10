@@ -1,8 +1,8 @@
 """Reads and writes for everything that is still editable.
 
 Profiles, the exercise library, routines, slots and weight overrides all change
-freely — history is protected by freezing the prescription (ADR-0001), not by
-locking these rows. Sessions live in `kettlebell.sessions`.
+freely — history is protected by snapshotting each workout (ADR-0001), not by
+locking these rows. Workouts live in `kettlebell.workouts`.
 """
 
 from __future__ import annotations
@@ -172,8 +172,8 @@ def list_exercises(
 ) -> list[Exercise]:
     """Read the library, archived movements hidden unless asked for.
 
-    History never comes through here — a prescription carries its own names — so
-    hiding an archived exercise cannot change what a past session reads.
+    History never comes through here — a workout carries its own names — so
+    hiding an archived exercise cannot change what a past workout reads.
     """
     clause = "" if include_archived else " WHERE archived = 0"
     rows = connection.execute(

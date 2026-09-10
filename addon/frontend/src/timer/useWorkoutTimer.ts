@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Clock } from "./clock";
 import { elapsedSeconds, pauseClock, resumeClock, startClock, verdictOnReturn } from "./clock";
-import type { Prescription, TimerState } from "./schedule";
+import type { TimerState, WorkoutTiming } from "./schedule";
 import { schedule } from "./schedule";
 import type { ScreenLock } from "./wakeLock";
 import { keepScreenAwake } from "./wakeLock";
@@ -28,13 +28,13 @@ export interface WorkoutTimer {
   resume(): void;
 }
 
-export function useWorkoutTimer(prescription: Prescription): WorkoutTimer {
+export function useWorkoutTimer(timing: WorkoutTiming): WorkoutTimer {
   const clockRef = useRef<Clock | null>(null);
   clockRef.current ??= startClock(performance.now());
 
   const readState = useCallback(
-    () => schedule(prescription, elapsedSeconds(clockRef.current as Clock, performance.now())),
-    [prescription],
+    () => schedule(timing, elapsedSeconds(clockRef.current as Clock, performance.now())),
+    [timing],
   );
 
   const [state, setState] = useState<TimerState>(readState);

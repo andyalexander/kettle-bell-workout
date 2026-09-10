@@ -8,7 +8,7 @@
  */
 
 /**
- * Fixed countdown before turn 1. It sits *outside* the session, so a session's
+ * Fixed countdown before turn 1. It sits *outside* the workout, so a workout's
  * recorded duration is never inflated by standing around before starting.
  */
 export const PREP_SECONDS = 10;
@@ -16,10 +16,10 @@ export const PREP_SECONDS = 10;
 /** Prep counts in; work and rest make up a turn; done is the summary. */
 export type Phase = "prep" | "work" | "rest" | "done";
 
-/** The timing shape a session runs to, frozen at workout start. */
-export interface Prescription {
-  /** Slots in one round. */
-  readonly slotCount: number;
+/** The timing shape a workout runs to, fixed when it starts. */
+export interface WorkoutTiming {
+  /** Activities in one round. */
+  readonly activityCount: number;
   readonly rounds: number;
   /** Seconds of work in a turn. */
   readonly workSeconds: number;
@@ -34,30 +34,30 @@ export interface TimerState {
   readonly turn: number;
   /** 1-based round, in CONTEXT.md's vocabulary. */
   readonly round: number;
-  /** Zero-based position within the round — which slot is being performed. */
-  readonly slotIndex: number;
+  /** Zero-based position within the round — which activity is being performed. */
+  readonly activityIndex: number;
   /** Seconds left in the current phase; zero once done. */
   readonly secondsRemaining: number;
   readonly totalTurns: number;
   readonly turnSeconds: number;
 }
 
-/** One turn per slot per round. A routine of 5 slots x 4 rounds is 20 turns. */
-export function totalTurns(prescription: Prescription): number {
-  return prescription.slotCount * prescription.rounds;
+/** One turn per activity per round. 5 activities x 4 rounds is 20 turns. */
+export function totalTurns(timing: WorkoutTiming): number {
+  return timing.activityCount * timing.rounds;
 }
 
 /** A turn is work plus rest, whichever mode the builder used to enter it. */
-export function turnSeconds(prescription: Prescription): number {
-  return prescription.workSeconds + prescription.restSeconds;
+export function turnSeconds(timing: WorkoutTiming): number {
+  return timing.workSeconds + timing.restSeconds;
 }
 
-function assertPerformable(prescription: Prescription): void {
-  const { slotCount, rounds, workSeconds, restSeconds } = prescription;
+function assertPerformable(timing: WorkoutTiming): void {
+  const { activityCount, rounds, workSeconds, restSeconds } = timing;
   const positive = (n: number) => Number.isInteger(n) && n > 0;
-  if (!positive(slotCount) || !positive(rounds) || !positive(workSeconds)) {
+  if (!positive(activityCount) || !positive(rounds) || !positive(workSeconds)) {
     throw new RangeError(
-      "A prescription needs a positive whole slotCount, rounds and workSeconds",
+      "A workout needs a positive whole activityCount, rounds and workSeconds",
     );
   }
   if (!Number.isInteger(restSeconds) || restSeconds < 0) {
@@ -66,25 +66,25 @@ function assertPerformable(prescription: Prescription): void {
 }
 
 /**
- * Resolve a prescription and an elapsed time into the state of the workout.
+ * Resolve a workout's timing and an elapsed time into the state of the workout.
  *
  * `elapsedSeconds` is time spent in the workout with pauses already discounted
  * (see `clock.ts`); readings before zero are treated as the start of prep.
  */
-export function schedule(prescription: Prescription, elapsedSeconds: number): TimerState {
-  assertPerformable(prescription);
+export function schedule(timing: WorkoutTiming, elapsedSeconds: number): TimerState {
+  assertPerformable(timing);
 
-  const total = totalTurns(prescription);
-  const length = turnSeconds(prescription);
+  const total = totalTurns(timing);
+  const length = turnSeconds(timing);
   const elapsed = Math.max(0, elapsedSeconds);
 
   if (elapsed < PREP_SECONDS) {
-    // Prep announces the first slot, so it reports turn 1's position.
+    // Prep announces the first activity, so it reports turn 1's position.
     return {
       phase: "prep",
       turn: 0,
       round: 1,
-      slotIndex: 0,
+      activityIndex: 0,
       secondsRemaining: PREP_SECONDS - elapsed,
       totalTurns: total,
       turnSeconds: length,
@@ -98,8 +98,8 @@ export function schedule(prescription: Prescription, elapsedSeconds: number): Ti
     return {
       phase: "done",
       turn: total,
-      round: prescription.rounds,
-      slotIndex: prescription.slotCount - 1,
+      round: timing.rounds,
+      activityIndex: timing.activityCount - 1,
       secondsRemaining: 0,
       totalTurns: total,
       turnSeconds: length,
@@ -107,13 +107,13 @@ export function schedule(prescription: Prescription, elapsedSeconds: number): Ti
   }
 
   const within = sinceStart - turn * length;
-  const working = within < prescription.workSeconds;
+  const working = within < timing.workSeconds;
   return {
     phase: working ? "work" : "rest",
     turn,
-    round: Math.floor(turn / prescription.slotCount) + 1,
-    slotIndex: turn % prescription.slotCount,
-    secondsRemaining: working ? prescription.workSeconds - within : length - within,
+    round: Math.floor(turn / timing.activityCount) + 1,
+    activityIndex: turn % timing.activityCount,
+    secondsRemaining: working ? timing.workSeconds - within : length - within,
     totalTurns: total,
     turnSeconds: length,
   };

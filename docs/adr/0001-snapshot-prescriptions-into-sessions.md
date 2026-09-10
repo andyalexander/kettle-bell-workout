@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-09-07
 - **Ticket**: [Data model: routines, exercises, sessions, and honest history](https://github.com/andyalexander/kettle-bell-workout/issues/2)
+- **Terminology**: since [#13](https://github.com/andyalexander/kettle-bell-workout/issues/13), a *session* is a **recorded workout** (table `workout`), a *prescription* is a **workout**, and a prescription's slots are **activities**; `prescription_json` is `snapshot_json`. The text below keeps the words of its day.
 
 ## Context
 

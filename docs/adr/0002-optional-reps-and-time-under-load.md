@@ -4,6 +4,7 @@
 - **Date**: 2026-09-09
 - **Ticket**: [Seed the exercise library with real exercises and form videos](https://github.com/andyalexander/kettle-bell-workout/issues/10)
 - **Amends**: [Data model](https://github.com/andyalexander/kettle-bell-workout/issues/2) (rule 4) and the [MQTT contract](https://github.com/andyalexander/kettle-bell-workout/issues/6) (two of its five sensors)
+- **Terminology**: since [#13](https://github.com/andyalexander/kettle-bell-workout/issues/13), `Prescription` is `Workout`, `PrescriptionSlot` is `Activity`, `Session` is `RecordedWorkout`, and `ProfileProgress.sessions` is `workouts` — so the `sessions` sensor below is published as `workouts`. The text below keeps the words of its day.
 
 ## Context
 

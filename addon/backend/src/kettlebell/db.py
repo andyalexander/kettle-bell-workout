@@ -65,16 +65,18 @@ CREATE TABLE weight_override (
 -- `routine_id` is informational only (ADR-0001) and deliberately carries no foreign
 -- key: deleting a routine must never cascade training history away, and setting the
 -- column NULL would lose the only link back to the shape that was trained.
-CREATE TABLE session (
+-- `snapshot_json` is the workout as it was fixed at start: routine name, rounds,
+-- timing and every activity.
+CREATE TABLE workout (
     id INTEGER PRIMARY KEY,
     profile_id INTEGER NOT NULL REFERENCES profile(id) ON DELETE CASCADE,
     routine_id INTEGER,
     started_at TEXT NOT NULL,
     ended_at TEXT NOT NULL,
-    prescription_json TEXT NOT NULL
+    snapshot_json TEXT NOT NULL
 );
 
-CREATE INDEX session_by_profile_time ON session (profile_id, started_at);
+CREATE INDEX workout_by_profile_time ON workout (profile_id, started_at);
 """
 
 MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA,)

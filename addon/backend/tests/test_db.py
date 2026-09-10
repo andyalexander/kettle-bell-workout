@@ -41,7 +41,7 @@ def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
         "routine",
         "slot",
         "weight_override",
-        "session",
+        "workout",
     } <= names
 
 

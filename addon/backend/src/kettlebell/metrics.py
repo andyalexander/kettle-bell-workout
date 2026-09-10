@@ -1,8 +1,8 @@
-"""Progress metrics, as pure folds over frozen prescriptions.
+"""Progress metrics, as pure folds over recorded workouts.
 
 Nothing here joins to a routine or a slot, so no metric can change value because
 somebody edited a routine — which is the whole point of ADR-0001. Every function
-takes sessions already read out of the database and returns a value; they are
+takes workouts already read out of the database and returns a value; they are
 pure, so they are cheap to test and safe to call from anywhere.
 """
 
@@ -13,7 +13,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from kettlebell.models import Session
+from kettlebell.models import RecordedWorkout
 
 __all__ = [
     "ExercisePoint",
@@ -35,63 +35,61 @@ class ProfileProgress:
     derives the weekly count from the lifetime totals for free.
     """
 
-    sessions: int
+    workouts: int
     time_under_load: int
     last_workout: datetime | None
     last_routine: str | None
     last_time_under_load: int | None
 
 
-def profile_progress(sessions: Sequence[Session]) -> ProfileProgress:
+def profile_progress(recorded: Sequence[RecordedWorkout]) -> ProfileProgress:
     """Fold one profile's whole history into the numbers HA is told about."""
-    if not sessions:
+    if not recorded:
         return ProfileProgress(
-            sessions=0,
+            workouts=0,
             time_under_load=0,
             last_workout=None,
             last_routine=None,
             last_time_under_load=None,
         )
-    latest = max(sessions, key=lambda session: session.started_at)
+    latest = max(recorded, key=lambda entry: entry.started_at)
     return ProfileProgress(
-        sessions=len(sessions),
-        time_under_load=sum(
-            session.prescription.time_under_load for session in sessions
-        ),
+        workouts=len(recorded),
+        time_under_load=sum(entry.workout.time_under_load for entry in recorded),
         last_workout=latest.ended_at,
-        last_routine=latest.prescription.routine_name,
-        last_time_under_load=latest.prescription.time_under_load,
+        last_routine=latest.workout.routine_name,
+        last_time_under_load=latest.workout.time_under_load,
     )
 
 
-def time_under_load_since(sessions: Iterable[Session], start: datetime) -> int:
-    """Seconds of work over every session that started at or after `start`.
+def time_under_load_since(recorded: Iterable[RecordedWorkout], start: datetime) -> int:
+    """Seconds of work over every workout that started at or after `start`.
 
     The rolling weekly and monthly figures the app charts are this function with
     a different `start`; neither is published to Home Assistant.
     """
     return sum(
-        session.prescription.time_under_load
-        for session in sessions
-        if session.started_at >= start
+        entry.workout.time_under_load for entry in recorded if entry.started_at >= start
     )
 
 
-def days_since_last_workout(sessions: Sequence[Session], today: date) -> int | None:
+def days_since_last_workout(
+    recorded: Sequence[RecordedWorkout], today: date
+) -> int | None:
     """Whole days between the last workout and `today`, or None if never trained."""
-    if not sessions:
+    if not recorded:
         return None
-    latest = max(session.started_at for session in sessions)
+    latest = max(entry.started_at for entry in recorded)
     return (today - latest.date()).days
 
 
-def consecutive_week_streak(sessions: Sequence[Session], today: date) -> int:
+def consecutive_week_streak(recorded: Sequence[RecordedWorkout], today: date) -> int:
     """Consecutive ISO weeks with at least one workout, counted back from now.
 
     A streak is not broken until the week actually ends, so a week with no
     training yet does not reset the count — it just does not extend it.
     """
-    trained = {_iso_week(session.started_at.date()) for session in sessions}
+    trained = {_iso_week(entry.started_at.date()) for entry in recorded}
     if not trained:
         return 0
     cursor = today
@@ -106,7 +104,7 @@ def consecutive_week_streak(sessions: Sequence[Session], today: date) -> int:
 
 @dataclass(frozen=True, slots=True)
 class ExercisePoint:
-    """One session's contribution to one exercise's trend."""
+    """One workout's contribution to one exercise's trend."""
 
     when: datetime
     exercise_name: str
@@ -115,32 +113,33 @@ class ExercisePoint:
 
 
 def exercise_series(
-    sessions: Iterable[Session],
+    recorded: Iterable[RecordedWorkout],
 ) -> dict[int, list[ExercisePoint]]:
     """Per-exercise time under load and top weight over time, oldest first.
 
-    Keyed on the `exercise_id` frozen into the prescription, so a trend survives
-    a rename; the name carried on each point is the one used at the time. A slot
-    contributes `rounds * work_seconds`, so an exercise appearing twice in one
-    routine counts twice — which is what actually happened to the athlete.
+    Keyed on the `exercise_id` frozen into each activity, so a trend survives a
+    rename; the name carried on each point is the one used at the time. An
+    activity contributes `rounds * work_seconds`, so an exercise appearing twice
+    in one workout counts twice — which is what actually happened to the athlete.
     """
     series: dict[int, list[ExercisePoint]] = defaultdict(list)
-    for session in sessions:
-        per_slot = session.prescription.rounds * session.prescription.work_seconds
+    for entry in recorded:
+        workout = entry.workout
+        per_activity = workout.rounds * workout.work_seconds
         totals: dict[int, tuple[str, int, float]] = {}
-        for slot in session.prescription.slots:
+        for activity in workout.activities:
             name, seconds, top = totals.get(
-                slot.exercise_id, (slot.exercise_name, 0, 0.0)
+                activity.exercise_id, (activity.exercise_name, 0, 0.0)
             )
-            totals[slot.exercise_id] = (
+            totals[activity.exercise_id] = (
                 name,
-                seconds + per_slot,
-                max(top, slot.weight),
+                seconds + per_activity,
+                max(top, activity.weight),
             )
         for exercise_id, (name, seconds, top) in totals.items():
             series[exercise_id].append(
                 ExercisePoint(
-                    when=session.started_at,
+                    when=entry.started_at,
                     exercise_name=name,
                     time_under_load=seconds,
                     top_weight=top,

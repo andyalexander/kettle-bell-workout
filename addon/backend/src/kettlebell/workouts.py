@@ -1,13 +1,13 @@
-"""Freezing a prescription, and recording the session it produced.
+"""Fixing a workout at start, and recording it when it completes.
 
-Two moments, deliberately separate. At workout start the prescription is *resolved*
-and frozen in memory — `override ?? slot.weight`, plus the routine's name, rounds
-and timing. Nothing is written yet, because aborting a workout writes nothing at
-all. When the last turn ends, the session row is written with that same frozen
-prescription and never touched again (ADR-0001).
+Two moments, deliberately separate. At start the workout is *fixed* — every weight
+resolved as `override ?? slot.weight`, plus the routine's name, rounds and timing.
+Nothing is written yet, because aborting a workout writes nothing at all. When the
+last turn ends, the workout row is written with that same fixed workout and never
+touched again (ADR-0001).
 
-A consequence worth naming: a session row can only exist for a completed workout,
-so `ended_at` is NOT NULL and a half-finished session is unrepresentable. That is
+A consequence worth naming: a workout row can only exist for a completed workout,
+so `ended_at` is NOT NULL and a half-finished workout is unrepresentable. That is
 rule 3 of `CONTEXT.md` expressed in the schema, and it is what will have to change
 when abandoned workouts get modelled.
 """
@@ -20,22 +20,22 @@ from datetime import UTC, datetime
 from typing import Any, SupportsInt, cast
 
 from kettlebell.db import transaction
-from kettlebell.models import Prescription, PrescriptionSlot, Session
+from kettlebell.models import Activity, RecordedWorkout, Workout
 
 __all__ = [
-    "freeze_prescription",
-    "get_session",
-    "list_sessions",
-    "record_session",
+    "fix_workout",
+    "get_workout",
+    "list_workouts",
+    "record_workout",
 ]
 
 
-def freeze_prescription(
+def fix_workout(
     connection: sqlite3.Connection, profile_id: int, routine_id: int
-) -> Prescription:
+) -> Workout:
     """Resolve a routine into what this profile is about to be asked to do.
 
-    Every weight is resolved here — a prescription never contains an unresolved
+    Every weight is resolved here — a workout never contains an unresolved
     override — and every exercise name is copied in, so a later rename or archive
     leaves the record readable.
     """
@@ -59,14 +59,14 @@ def freeze_prescription(
     if not rows:
         raise LookupError(f"routine {routine_id} has no slots")
 
-    return Prescription(
+    return Workout(
         routine_id=int(routine["id"]),
         routine_name=str(routine["name"]),
         rounds=int(routine["rounds"]),
         work_seconds=int(routine["work_seconds"]),
         rest_seconds=int(routine["rest_seconds"]),
-        slots=tuple(
-            PrescriptionSlot(
+        activities=tuple(
+            Activity(
                 position=int(row["position"]),
                 exercise_id=int(row["exercise_id"]),
                 exercise_name=str(row["exercise_name"]),
@@ -78,43 +78,43 @@ def freeze_prescription(
     )
 
 
-def record_session(
+def record_workout(
     connection: sqlite3.Connection,
     profile_id: int,
-    prescription: Prescription,
+    workout: Workout,
     started_at: datetime,
     ended_at: datetime,
-) -> Session:
+) -> RecordedWorkout:
     """Write a completed workout. Called once, when the summary screen appears."""
     with transaction(connection):
         cursor = connection.execute(
-            "INSERT INTO session"
-            " (profile_id, routine_id, started_at, ended_at, prescription_json)"
+            "INSERT INTO workout"
+            " (profile_id, routine_id, started_at, ended_at, snapshot_json)"
             " VALUES (?, ?, ?, ?, ?)",
             (
                 profile_id,
-                prescription.routine_id,
+                workout.routine_id,
                 _to_iso(started_at),
                 _to_iso(ended_at),
-                json.dumps(_prescription_to_dict(prescription)),
+                json.dumps(_workout_to_dict(workout)),
             ),
         )
-    return Session(
+    return RecordedWorkout(
         id=int(cursor.lastrowid or 0),
         profile_id=profile_id,
         started_at=started_at,
         ended_at=ended_at,
-        prescription=prescription,
+        workout=workout,
     )
 
 
-def list_sessions(
+def list_workouts(
     connection: sqlite3.Connection,
     profile_id: int | None = None,
     *,
     limit: int | None = None,
-) -> list[Session]:
-    """Sessions newest first, for one profile or for everybody."""
+) -> list[RecordedWorkout]:
+    """List recorded workouts newest first, for one profile or for everybody."""
     where = "" if profile_id is None else " WHERE profile_id = ?"
     clause = "" if limit is None else " LIMIT ?"
     parameters: tuple[int, ...] = tuple(
@@ -122,77 +122,79 @@ def list_sessions(
     )
     rows = connection.execute(
         # Both interpolated fragments are fixed literals; values stay parameters.
-        f"SELECT * FROM session{where} ORDER BY started_at DESC, id DESC{clause}",
+        f"SELECT * FROM workout{where} ORDER BY started_at DESC, id DESC{clause}",
         parameters,
     ).fetchall()
-    return [_to_session(row) for row in rows]
+    return [_to_recorded(row) for row in rows]
 
 
-def get_session(connection: sqlite3.Connection, session_id: int) -> Session | None:
-    """One session, or None when it does not exist."""
+def get_workout(
+    connection: sqlite3.Connection, workout_id: int
+) -> RecordedWorkout | None:
+    """One recorded workout, or None when it does not exist."""
     row = connection.execute(
-        "SELECT * FROM session WHERE id = ?", (session_id,)
+        "SELECT * FROM workout WHERE id = ?", (workout_id,)
     ).fetchone()
-    return None if row is None else _to_session(row)
+    return None if row is None else _to_recorded(row)
 
 
 # --- serialisation ----------------------------------------------------------
 
 
-def _prescription_to_dict(prescription: Prescription) -> dict[str, Any]:
+def _workout_to_dict(workout: Workout) -> dict[str, Any]:
     return {
-        "routine_id": prescription.routine_id,
-        "routine_name": prescription.routine_name,
-        "rounds": prescription.rounds,
-        "work_seconds": prescription.work_seconds,
-        "rest_seconds": prescription.rest_seconds,
-        "slots": [
+        "routine_id": workout.routine_id,
+        "routine_name": workout.routine_name,
+        "rounds": workout.rounds,
+        "work_seconds": workout.work_seconds,
+        "rest_seconds": workout.rest_seconds,
+        "activities": [
             {
-                "position": slot.position,
-                "exercise_id": slot.exercise_id,
-                "exercise_name": slot.exercise_name,
-                "reps": slot.reps,
-                "weight": slot.weight,
+                "position": activity.position,
+                "exercise_id": activity.exercise_id,
+                "exercise_name": activity.exercise_name,
+                "reps": activity.reps,
+                "weight": activity.weight,
             }
-            for slot in prescription.slots
+            for activity in workout.activities
         ],
     }
 
 
-def _prescription_from_json(payload: str) -> Prescription:
+def _workout_from_json(payload: str) -> Workout:
     raw: dict[str, Any] = json.loads(payload)
-    slots: list[dict[str, Any]] = raw["slots"]
-    return Prescription(
+    activities: list[dict[str, Any]] = raw["activities"]
+    return Workout(
         routine_id=int(raw["routine_id"]),
         routine_name=str(raw["routine_name"]),
         rounds=int(raw["rounds"]),
         work_seconds=int(raw["work_seconds"]),
         rest_seconds=int(raw["rest_seconds"]),
-        slots=tuple(
-            PrescriptionSlot(
-                position=int(slot["position"]),
-                exercise_id=int(slot["exercise_id"]),
-                exercise_name=str(slot["exercise_name"]),
-                reps=_optional_int(slot["reps"]),
-                weight=float(slot["weight"]),
+        activities=tuple(
+            Activity(
+                position=int(activity["position"]),
+                exercise_id=int(activity["exercise_id"]),
+                exercise_name=str(activity["exercise_name"]),
+                reps=_optional_int(activity["reps"]),
+                weight=float(activity["weight"]),
             )
-            for slot in slots
+            for activity in activities
         ),
     )
 
 
-def _to_session(row: sqlite3.Row) -> Session:
-    return Session(
+def _to_recorded(row: sqlite3.Row) -> RecordedWorkout:
+    return RecordedWorkout(
         id=int(row["id"]),
         profile_id=int(row["profile_id"]),
         started_at=_from_iso(str(row["started_at"])),
         ended_at=_from_iso(str(row["ended_at"])),
-        prescription=_prescription_from_json(str(row["prescription_json"])),
+        workout=_workout_from_json(str(row["snapshot_json"])),
     )
 
 
 def _optional_int(value: object) -> int | None:
-    """Reps are optional, in the row and in the frozen JSON alike."""
+    """Reps are optional, in the row and in the snapshot JSON alike."""
     return None if value is None else int(cast(SupportsInt, value))
 
 

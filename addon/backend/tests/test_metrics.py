@@ -1,132 +1,132 @@
 from datetime import UTC, date, datetime, timedelta
 
 from kettlebell import metrics
-from kettlebell.models import Prescription, PrescriptionSlot, Session
+from kettlebell.models import Activity, RecordedWorkout, Workout
 
-SWING = PrescriptionSlot(
+SWING = Activity(
     position=0, exercise_id=1, exercise_name="Two-hand swing", reps=10, weight=24
 )
-CLEAN = PrescriptionSlot(
+CLEAN = Activity(
     position=1, exercise_id=2, exercise_name="Double clean", reps=5, weight=20
 )
 
 
-def _prescription(name: str = "Monday", rounds: int = 4) -> Prescription:
-    return Prescription(
+def _workout(name: str = "Monday", rounds: int = 4) -> Workout:
+    return Workout(
         routine_id=1,
         routine_name=name,
         rounds=rounds,
         work_seconds=60,
         rest_seconds=0,
-        slots=(SWING, CLEAN),
+        activities=(SWING, CLEAN),
     )
 
 
-def _session(
-    session_id: int, when: datetime, prescription: Prescription | None = None
-) -> Session:
-    return Session(
-        id=session_id,
+def _recorded(
+    workout_id: int, when: datetime, workout: Workout | None = None
+) -> RecordedWorkout:
+    return RecordedWorkout(
+        id=workout_id,
         profile_id=1,
         started_at=when,
         ended_at=when + timedelta(minutes=8),
-        prescription=_prescription() if prescription is None else prescription,
+        workout=_workout() if workout is None else workout,
     )
 
 
 def test_progress_of_a_profile_that_has_never_trained() -> None:
     progress = metrics.profile_progress([])
-    assert progress.sessions == 0
+    assert progress.workouts == 0
     assert progress.time_under_load == 0
     assert progress.last_workout is None
     assert progress.last_routine is None
 
 
 def test_progress_folds_lifetime_totals_and_the_latest_workout() -> None:
-    older = _session(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
-    newer = _session(
+    older = _recorded(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
+    newer = _recorded(
         2,
         datetime(2026, 9, 8, 7, 0, tzinfo=UTC),
-        _prescription(name="Friday", rounds=2),
+        _workout(name="Friday", rounds=2),
     )
 
     progress = metrics.profile_progress([older, newer])
-    assert progress.sessions == 2
-    # Four rounds of two slots at 60s, then two rounds of the same: 480 + 240.
+    assert progress.workouts == 2
+    # Four rounds of two activities at 60s, then two rounds of the same: 480 + 240.
     assert progress.time_under_load == 480 + 240
     assert progress.last_routine == "Friday"
     assert progress.last_time_under_load == 240
     assert progress.last_workout == newer.ended_at
 
 
-def test_time_under_load_since_ignores_older_sessions() -> None:
-    older = _session(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
-    newer = _session(2, datetime(2026, 9, 8, 7, 0, tzinfo=UTC))
+def test_time_under_load_since_ignores_older_workouts() -> None:
+    older = _recorded(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
+    newer = _recorded(2, datetime(2026, 9, 8, 7, 0, tzinfo=UTC))
     cutoff = datetime(2026, 9, 5, tzinfo=UTC)
     assert metrics.time_under_load_since([older, newer], cutoff) == 480
 
 
-def test_a_repless_prescription_still_has_time_under_load() -> None:
+def test_a_repless_workout_still_has_time_under_load() -> None:
     """The whole point of retiring volume (ADR-0002): carries still count."""
-    carry = PrescriptionSlot(
+    carry = Activity(
         position=0, exercise_id=9, exercise_name="Farmer's carry", reps=None, weight=16
     )
-    prescription = Prescription(
+    workout = Workout(
         routine_id=2,
         routine_name="Carries",
         rounds=3,
         work_seconds=40,
         rest_seconds=20,
-        slots=(carry,),
+        activities=(carry,),
     )
-    session = _session(1, datetime(2026, 9, 8, 7, 0, tzinfo=UTC), prescription)
-    assert metrics.profile_progress([session]).time_under_load == 120
+    recorded = _recorded(1, datetime(2026, 9, 8, 7, 0, tzinfo=UTC), workout)
+    assert metrics.profile_progress([recorded]).time_under_load == 120
 
 
 def test_days_since_last_workout() -> None:
-    session = _session(1, datetime(2026, 9, 6, 7, 0, tzinfo=UTC))
-    assert metrics.days_since_last_workout([session], date(2026, 9, 9)) == 3
+    recorded = _recorded(1, datetime(2026, 9, 6, 7, 0, tzinfo=UTC))
+    assert metrics.days_since_last_workout([recorded], date(2026, 9, 9)) == 3
     assert metrics.days_since_last_workout([], date(2026, 9, 9)) is None
 
 
 def test_a_streak_counts_consecutive_iso_weeks() -> None:
     weeks = [
-        _session(index, datetime(2026, 9, 9, tzinfo=UTC) - timedelta(days=7 * index))
+        _recorded(index, datetime(2026, 9, 9, tzinfo=UTC) - timedelta(days=7 * index))
         for index in range(3)
     ]
     assert metrics.consecutive_week_streak(weeks, date(2026, 9, 9)) == 3
 
 
 def test_a_gap_ends_the_streak() -> None:
-    this_week = _session(1, datetime(2026, 9, 9, tzinfo=UTC))
-    long_ago = _session(2, datetime(2026, 8, 5, tzinfo=UTC))
+    this_week = _recorded(1, datetime(2026, 9, 9, tzinfo=UTC))
+    long_ago = _recorded(2, datetime(2026, 8, 5, tzinfo=UTC))
     assert metrics.consecutive_week_streak([this_week, long_ago], date(2026, 9, 9)) == 1
 
 
 def test_a_quiet_week_does_not_break_a_streak_until_it_ends() -> None:
-    last_week = _session(1, datetime(2026, 9, 2, tzinfo=UTC))
+    last_week = _recorded(1, datetime(2026, 9, 2, tzinfo=UTC))
     # Monday of the following week: nothing trained yet, but the run is alive.
     assert metrics.consecutive_week_streak([last_week], date(2026, 9, 7)) == 1
     assert metrics.consecutive_week_streak([last_week], date(2026, 9, 16)) == 0
 
 
 def test_exercise_series_keys_on_the_frozen_id_and_keeps_the_old_name() -> None:
-    first = _session(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
-    renamed = PrescriptionSlot(
+    first = _recorded(1, datetime(2026, 9, 1, 7, 0, tzinfo=UTC))
+    renamed = Activity(
         position=0, exercise_id=1, exercise_name="Swing (renamed)", reps=10, weight=32
     )
-    second = Session(
+    second = RecordedWorkout(
         id=2,
         profile_id=1,
         started_at=datetime(2026, 9, 8, 7, 0, tzinfo=UTC),
         ended_at=datetime(2026, 9, 8, 7, 8, tzinfo=UTC),
-        prescription=Prescription(
+        workout=Workout(
             routine_id=1,
             routine_name="Monday",
             rounds=1,
             work_seconds=60,
             rest_seconds=0,
-            slots=(renamed,),
+            activities=(renamed,),
         ),
     )
 
@@ -138,20 +138,20 @@ def test_exercise_series_keys_on_the_frozen_id_and_keeps_the_old_name() -> None:
         "Swing (renamed)",
     ]
     assert [point.top_weight for point in swings] == [24.0, 32.0]
-    # First session: 4 rounds at 60s on that one slot.
+    # First workout: 4 rounds at 60s on that one activity.
     assert swings[0].time_under_load == 240
 
 
-def test_repeated_slots_of_one_exercise_sum_within_a_session() -> None:
-    twice = Prescription(
+def test_repeated_activities_of_one_exercise_sum_within_a_workout() -> None:
+    twice = Workout(
         routine_id=1,
         routine_name="Ladder",
         rounds=2,
         work_seconds=40,
         rest_seconds=20,
-        slots=(
+        activities=(
             SWING,
-            PrescriptionSlot(
+            Activity(
                 position=1,
                 exercise_id=1,
                 exercise_name="Two-hand swing",
@@ -160,8 +160,8 @@ def test_repeated_slots_of_one_exercise_sum_within_a_session() -> None:
             ),
         ),
     )
-    session = _session(1, datetime(2026, 9, 1, tzinfo=UTC), twice)
-    point = metrics.exercise_series([session])[1][0]
-    # Two slots of the same exercise, two rounds, 40s of work each.
+    recorded = _recorded(1, datetime(2026, 9, 1, tzinfo=UTC), twice)
+    point = metrics.exercise_series([recorded])[1][0]
+    # Two activities of the same exercise, two rounds, 40s of work each.
     assert point.time_under_load == 2 * 2 * 40
     assert point.top_weight == 32.0
