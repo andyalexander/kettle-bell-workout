@@ -49,7 +49,7 @@ SENSORS: Mapping[str, Mapping[str, str | int]] = {
     },
     "last_routine": {"name": "Last routine", "icon": "mdi:kettlebell"},
     "last_duration": {
-        "name": "Last workout effort duration",
+        "name": "Last workout duration",
         "device_class": "duration",
         "state_class": "measurement",
         "unit_of_measurement": "s",
@@ -62,7 +62,7 @@ SENSORS: Mapping[str, Mapping[str, str | int]] = {
         "icon": "mdi:calendar-check",
     },
     "training_time": {
-        "name": "Training time",
+        "name": "Total workout duration",
         "device_class": "duration",
         "state_class": "total",
         "unit_of_measurement": "s",
