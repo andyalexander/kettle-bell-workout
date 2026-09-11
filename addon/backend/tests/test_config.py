@@ -30,6 +30,20 @@ def test_reads_the_variables_run_sh_exports() -> None:
     assert settings.mqtt.port == 1883
 
 
+def test_broker_tls_follows_the_string_bashio_renders() -> None:
+    def ssl(value: str | None) -> bool:
+        env = {"KB_MQTT_HOST": "core-mosquitto"}
+        if value is not None:
+            env["KB_MQTT_SSL"] = value
+        mqtt = Settings.from_env(env).mqtt
+        assert mqtt is not None
+        return mqtt.ssl
+
+    assert ssl("true") is True
+    assert ssl("false") is False
+    assert ssl(None) is False
+
+
 def test_blank_credentials_become_none() -> None:
     settings = Settings.from_env(
         {"KB_MQTT_HOST": "core-mosquitto", "KB_MQTT_USERNAME": ""}

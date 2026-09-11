@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Workout results reach Home Assistant over MQTT. Each profile becomes its own
+  device, **Kettlebell _name_**, from its first recorded workout, with five
+  sensors: Last workout, Last routine, Last workout duration, Workouts and
+  Training time. Every value is retained at the broker, so it survives a Home
+  Assistant restart, and the lifetime totals feed long-term statistics.
+- Training time is time under load — work only; rest and prep are excluded.
+- Publishing is best effort: a broker that is down or slow never stops a workout
+  being recorded, and the next workout publishes everything again.
+- Broker TLS follows the Supervisor's MQTT service; nothing to configure.
+
 ## 0.2.0
 
 - Optional TLS, off by default: `ssl`, `certfile` and `keyfile` options, with the

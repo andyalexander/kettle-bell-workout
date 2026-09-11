@@ -14,7 +14,9 @@ if bashio::services.available "mqtt"; then
   KB_MQTT_PORT="$(bashio::services mqtt 'port')"
   KB_MQTT_USERNAME="$(bashio::services mqtt 'username')"
   KB_MQTT_PASSWORD="$(bashio::services mqtt 'password')"
-  export KB_MQTT_HOST KB_MQTT_PORT KB_MQTT_USERNAME KB_MQTT_PASSWORD
+  # bashio renders the boolean as the literal string true or false.
+  KB_MQTT_SSL="$(bashio::services mqtt 'ssl')"
+  export KB_MQTT_HOST KB_MQTT_PORT KB_MQTT_USERNAME KB_MQTT_PASSWORD KB_MQTT_SSL
 else
   bashio::log.warning "No MQTT service registered with the Supervisor."
 fi
