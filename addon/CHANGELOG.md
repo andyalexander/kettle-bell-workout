@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- "Last workout duration" is now **Last workout effort duration**: it was always
+  time under load, work only, so a 15-minute workout reads 10 minutes, not 15.
+- Both durations show whole seconds (`600 s`, not `600.00 s`). Home Assistant's
+  MQTT sensors ignore a suggested unit, so choose minutes or hours in each
+  sensor's settings if you prefer them.
+- Workouts shows a bare count (`1`, not `1 workouts`).
+
 ## 0.3.0
 
 - Workout results reach Home Assistant over MQTT. Each profile becomes its own
