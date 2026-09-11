@@ -1,21 +1,22 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from kettlebell import __version__
 from kettlebell.config import Settings
 from kettlebell.db import MIGRATIONS, connect
 from kettlebell.main import create_app
 
 
 @pytest.mark.anyio
-async def test_health_reports_ok(tmp_path_settings: Settings) -> None:
+async def test_health_reports_the_version_it_was_built_for(
+    tmp_path_settings: Settings,
+) -> None:
     app = create_app(tmp_path_settings)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": __version__}
+    assert response.json() == {"status": "ok", "version": "9.9.9"}
 
 
 @pytest.mark.anyio

@@ -33,6 +33,9 @@ class Settings:
     static_dir: Path
     log_level: str
     mqtt: MqttSettings | None
+    # The app's one version is `config.yaml`'s. Supervisor builds the image with
+    # it, and the Dockerfile carries it in as `KB_VERSION`; outside the image, "dev".
+    version: str
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -43,6 +46,7 @@ class Settings:
             static_dir=Path(source.get("KB_STATIC_DIR", "static")),
             log_level=source.get("KB_LOG_LEVEL", "info").lower(),
             mqtt=_mqtt_from_env(source),
+            version=source.get("KB_VERSION", "dev"),
         )
 
 

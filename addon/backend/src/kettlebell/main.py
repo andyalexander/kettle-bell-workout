@@ -10,7 +10,6 @@ import anyio
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from kettlebell import __version__
 from kettlebell.api import OnRecorded, router
 from kettlebell.config import Settings
 from kettlebell.db import open_database
@@ -45,7 +44,7 @@ def create_app(
     publisher = (
         None
         if resolved.mqtt is None
-        else Publisher(resolved.mqtt, resolved.database_path, send)
+        else Publisher(resolved.mqtt, resolved.database_path, resolved.version, send)
     )
     if on_recorded is None:
         on_recorded = _publish_nothing if publisher is None else publisher.announce
@@ -75,12 +74,14 @@ def create_app(
             yield
             tasks.cancel_scope.cancel()
 
-    app = FastAPI(title="Kettlebell Trainer", version=__version__, lifespan=lifespan)
+    app = FastAPI(
+        title="Kettlebell Trainer", version=resolved.version, lifespan=lifespan
+    )
 
     @app.get("/api/health")
     async def health() -> Health:
         """Report liveness; wired to `watchdog` in the app's `config.yaml`."""
-        return {"status": "ok", "version": __version__}
+        return {"status": "ok", "version": resolved.version}
 
     app.state.database_path = resolved.database_path
     app.state.on_recorded = on_recorded

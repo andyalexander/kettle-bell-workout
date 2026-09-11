@@ -18,6 +18,7 @@ def tmp_path_settings(tmp_path: Path) -> Settings:
         static_dir=tmp_path / "static",
         log_level="info",
         mqtt=None,
+        version="9.9.9",
     )
 
 
