@@ -37,7 +37,11 @@ ACK_TIMEOUT_SECONDS = 10.0
 # The five sensors, keyed by discovery id — which is also the state document's key.
 # No `default_entity_id`: HA names entities from device and sensor name, which gives
 # the same ids and suffixes a collision the way it does for every integration.
-SENSORS: Mapping[str, Mapping[str, str]] = {
+# MQTT sensors take no `suggested_unit_of_measurement`, so durations stay in seconds,
+# shown whole; the viewer picks minutes or hours in HA. Workouts has no unit: HA
+# would print free text after the count ("1 workouts"), and statistics need only the
+# `state_class`.
+SENSORS: Mapping[str, Mapping[str, str | int]] = {
     "last_workout": {
         "name": "Last workout",
         "device_class": "timestamp",
@@ -45,17 +49,16 @@ SENSORS: Mapping[str, Mapping[str, str]] = {
     },
     "last_routine": {"name": "Last routine", "icon": "mdi:kettlebell"},
     "last_duration": {
-        "name": "Last workout duration",
+        "name": "Last workout effort duration",
         "device_class": "duration",
         "state_class": "measurement",
         "unit_of_measurement": "s",
-        "suggested_unit_of_measurement": "min",
+        "suggested_display_precision": 0,
         "icon": "mdi:timer-outline",
     },
     "workouts": {
         "name": "Workouts",
         "state_class": "total",
-        "unit_of_measurement": "workouts",
         "icon": "mdi:calendar-check",
     },
     "training_time": {
@@ -63,7 +66,7 @@ SENSORS: Mapping[str, Mapping[str, str]] = {
         "device_class": "duration",
         "state_class": "total",
         "unit_of_measurement": "s",
-        "suggested_unit_of_measurement": "h",
+        "suggested_display_precision": 0,
         "icon": "mdi:arm-flex",
     },
 }
