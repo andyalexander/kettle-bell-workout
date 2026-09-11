@@ -7,9 +7,9 @@ interface RoutineListProps {
   readonly profile: Profile;
   readonly routines: readonly RoutineSummary[];
   /** The routine whose workout is on its way; every Start waits until it lands. */
-  readonly starting: number | null;
-  /** Why the last Start failed, if it did. */
-  readonly notice: string | null;
+  readonly startingRoutineId: number | null;
+  /** Why the last call failed — a Start, or the reload after a workout. */
+  readonly problem: string | null;
   readonly onChoose: (routine: RoutineSummary) => void;
   readonly onBack: () => void;
 }
@@ -21,19 +21,19 @@ interface RoutineListProps {
 export function RoutineList({
   profile,
   routines,
-  starting,
-  notice,
+  startingRoutineId,
+  problem,
   onChoose,
   onBack,
 }: RoutineListProps) {
   return (
     <Page title={profile.name} onBack={onBack}>
-      {notice && (
+      {problem && (
         <p
           role="alert"
           className="text-center text-[clamp(18px,4vmin,42px)] font-semibold text-red-300"
         >
-          {notice}
+          {problem}
         </p>
       )}
       {routines.length === 0 ? (
@@ -60,10 +60,10 @@ export function RoutineList({
               <CircleButton
                 className="self-end sm:self-auto"
                 aria-label={`Start ${routine.name}`}
-                disabled={starting !== null}
+                disabled={startingRoutineId !== null}
                 onClick={() => onChoose(routine)}
               >
-                {starting === routine.id ? "…" : "Start"}
+                {startingRoutineId === routine.id ? "…" : "Start"}
               </CircleButton>
             </li>
           ))}

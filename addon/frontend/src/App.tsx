@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Profile, RoutineSummary, Workout } from "./api";
 import { describeFailure, listProfiles, listRoutines, startWorkout } from "./api";
@@ -33,18 +33,20 @@ interface Library {
  */
 export function App({ queue, flushed }: AppProps) {
   const [library, setLibrary] = useState<Library | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: "picker" });
-  const [starting, setStarting] = useState<number | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [startingRoutineId, setStartingRoutineId] = useState<number | null>(null);
+  /** Why the last call failed, until the next one — full-page before anything loads. */
+  const [problem, setProblem] = useState<string | null>(null);
+  /** Bumped by Back, so a Start still on its way lands nowhere. */
+  const startRequest = useRef(0);
 
   const load = useCallback(async () => {
-    setFailure(null);
+    setProblem(null);
     try {
       const [profiles, routines] = await Promise.all([listProfiles(), listRoutines()]);
       setLibrary({ profiles, routines });
     } catch (error) {
-      setFailure(describeFailure(error));
+      setProblem(describeFailure(error));
     }
   }, []);
 
@@ -59,15 +61,25 @@ export function App({ queue, flushed }: AppProps) {
 
   const handleStart = async (profile: Profile, routine: RoutineSummary) => {
     unlockAudio(); // inside the tap: iOS won't let the fetch's callback do it
-    setNotice(null);
-    setStarting(routine.id);
-    try {
-      setScreen({ name: "workout", profile, workout: await startWorkout(profile.id, routine.id) });
-    } catch (error) {
-      setNotice(describeFailure(error));
-    } finally {
-      setStarting(null);
-    }
+    const request = ++startRequest.current;
+    setProblem(null);
+    setStartingRoutineId(routine.id);
+    const result = await startWorkout(profile.id, routine.id).then(
+      (workout) => ({ workout }),
+      (error: unknown) => ({ problem: describeFailure(error) }),
+    );
+    if (request !== startRequest.current) return;
+
+    setStartingRoutineId(null);
+    if ("workout" in result) setScreen({ name: "workout", profile, workout: result.workout });
+    else setProblem(result.problem);
+  };
+
+  const handleBack = () => {
+    startRequest.current += 1;
+    setStartingRoutineId(null);
+    setProblem(null);
+    setScreen({ name: "picker" });
   };
 
   const handleWorkoutExit = (profile: Profile) => {
@@ -86,18 +98,18 @@ export function App({ queue, flushed }: AppProps) {
     );
   }
 
-  if (!library) {
-    return failure ? (
+  if (!library && problem) {
+    return (
       <Page title="Can't reach the Pi">
         <p className="text-center text-[clamp(18px,4vmin,42px)] font-semibold opacity-85">
-          {failure}
+          {problem}
         </p>
         <CircleButton onClick={() => void load()}>Retry</CircleButton>
       </Page>
-    ) : (
-      <Page title="Kettlebell">{null}</Page>
     );
   }
+
+  if (!library) return <Page title="Kettlebell" />;
 
   const profile =
     screen.name === "routines"
@@ -118,13 +130,10 @@ export function App({ queue, flushed }: AppProps) {
     <RoutineList
       profile={profile}
       routines={library.routines}
-      starting={starting}
-      notice={notice}
+      startingRoutineId={startingRoutineId}
+      problem={problem}
       onChoose={(routine) => void handleStart(profile, routine)}
-      onBack={() => {
-        setNotice(null);
-        setScreen({ name: "picker" });
-      }}
+      onBack={handleBack}
     />
   );
 }

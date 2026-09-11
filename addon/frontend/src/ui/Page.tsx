@@ -6,7 +6,7 @@ interface PageProps {
   readonly title: string;
   /** Shows a Back circle beside the title. */
   readonly onBack?: () => void;
-  readonly children: ReactNode;
+  readonly children?: ReactNode;
 }
 
 /** The shell of every screen before the workout: dim ground, one big title. */

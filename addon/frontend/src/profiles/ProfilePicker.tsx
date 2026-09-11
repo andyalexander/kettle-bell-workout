@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useState } from "react";
 
 import type { Profile } from "../api";
@@ -28,9 +28,7 @@ export function ProfilePicker({ profiles, onChoose, onCreated }: ProfilePickerPr
       <ul className="flex max-w-[1100px] flex-wrap justify-center gap-[5vmin]">
         {profiles.map((profile) => (
           <Tile key={profile.id} label={profile.name}>
-            <CircleButton
-              variant="tinted"
-              aria-label={profile.name}
+            <CircleButton aria-label={profile.name}
               onClick={() => onChoose(profile)}
             >
               <Avatar profile={profile} />
@@ -77,6 +75,11 @@ function NewProfile({ onCancel, onCreated }: NewProfileProps) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const handleNameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setName(event.target.value);
+    setError(null);
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -97,10 +100,7 @@ function NewProfile({ onCancel, onCreated }: NewProfileProps) {
         <input
           autoFocus
           value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            setError(null);
-          }}
+          onChange={handleNameChange}
           placeholder="Name"
           aria-label="Name"
           autoComplete="off"
