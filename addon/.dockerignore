@@ -1,0 +1,42 @@
+# Supervisor builds from a fresh git clone, so its build context holds only what
+# git tracks. This file makes a local `docker build addon/` see the same inputs:
+# it mirrors the repo's .gitignore, and nothing more. Without it, `COPY frontend/`
+# layers the Mac's own node_modules over the Linux ones `npm ci` just installed.
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.coverage
+**/htmlcov/
+
+# Node / front end
+**/node_modules/
+**/dist/
+**/.vite/
+**/*.tsbuildinfo
+
+# Environment / secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite
+**/*.sqlite3
+**/data/
+
+# Agent + editor scratch
+**/.scratch/
+**/.remember/
+**/.DS_Store
+**/.idea/
+**/.vscode/
