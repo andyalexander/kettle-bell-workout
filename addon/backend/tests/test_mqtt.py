@@ -178,7 +178,7 @@ def test_discovery_is_one_device_per_profile_with_the_five_sensors(
             },
             "last_duration": {
                 "platform": "sensor",
-                "name": "Last workout effort duration",
+                "name": "Last workout duration",
                 "unique_id": "kettlebell_profile_1_last_duration",
                 "device_class": "duration",
                 "state_class": "measurement",
@@ -197,7 +197,7 @@ def test_discovery_is_one_device_per_profile_with_the_five_sensors(
             },
             "training_time": {
                 "platform": "sensor",
-                "name": "Training time",
+                "name": "Total workout duration",
                 "unique_id": "kettlebell_profile_1_training_time",
                 "device_class": "duration",
                 "state_class": "total",

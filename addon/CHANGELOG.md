@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+- Consistent names for the two durations: **Last workout duration** and **Total
+  workout duration** (was Last workout effort duration and Training time). Both
+  still count work only, whole seconds; the sensors and their history carry over.
+
 ## 0.3.1
 
 - "Last workout duration" is now **Last workout effort duration**: it was always
