@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+- **Add it to your Home Screen and it opens like an app**: full screen, no
+  address bar or toolbar, with the status bar over the dark background. In
+  Safari or Chrome on iPhone or iPad, tap Share → Add to Home Screen.
+
 ## 0.4.2
 
 - `http://homeassistant.local:8234/` works on iPhone and iPad. The app only
