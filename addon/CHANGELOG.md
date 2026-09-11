@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+- **You can train with it.** Open the app, pick who's training (or add yourself
+  with **+** — a name is all it needs), choose a routine, and the workout runs
+  from a 10-second prep to a summary. Finishing records the workout; aborting
+  records nothing.
+- The workout screen: the countdown fills the screen, with the exercise and its
+  weight above it and the round below. Green is work, red is rest, amber is prep,
+  and a white flash marks each new turn. Pause and abort are the only controls.
+- Sound is off by default; the speaker button turns on 3-2-1 beeps and remembers
+  the choice per person.
+- A workout that couldn't be saved — the Pi out of reach — is kept on the device
+  and retried until it is, including the next time the app opens.
+
 ## 0.3.2
 
 - Consistent names for the two durations: **Last workout duration** and **Total
