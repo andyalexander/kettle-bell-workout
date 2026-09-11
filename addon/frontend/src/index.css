@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+/*
+ * Palette "dim" (issue #4). The phase colour is the signal, full-bleed (#3):
+ * amber prep, green work, red rest, and the neutral ground for paused and done.
+ */
+@theme {
+  --color-ground: #101014;
+  --color-prep: #b8760a;
+  --color-work: #167d3a;
+  --color-rest: #9e1f28;
+}
+
+html,
+body {
+  background: var(--color-ground);
+  color: #fff;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
