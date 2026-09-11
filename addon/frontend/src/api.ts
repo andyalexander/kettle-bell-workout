@@ -85,6 +85,13 @@ export class ApiError extends Error {
   }
 }
 
+/** What to tell someone a call failed: the server's reason, or that the Pi is away. */
+export function describeFailure(error: unknown): string {
+  return error instanceof ApiError
+    ? error.message
+    : "Can't reach the Pi. Check the Wi-Fi and try again.";
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method,
@@ -96,15 +103,31 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (await response.json()) as T;
 }
 
-/** FastAPI's `detail` is a string for our own errors, a list for validation. */
 async function detailOf(response: Response): Promise<string> {
   try {
     const { detail } = (await response.json()) as { detail?: unknown };
-    return typeof detail === "string" ? detail : JSON.stringify(detail);
+    return readableDetail(detail);
   } catch {
     return response.statusText;
   }
 }
+
+/**
+ * FastAPI's `detail`, fit to show someone: a string for our own refusals, a list
+ * of `{ msg }` for a failed validation — read for its messages, not as JSON.
+ */
+export function readableDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length > 0 && detail.every(hasMessage)) {
+    return detail.map(({ msg }) => msg).join("; ");
+  }
+  return JSON.stringify(detail);
+}
+
+const hasMessage = (item: unknown): item is { msg: string } =>
+  typeof item === "object" &&
+  item !== null &&
+  typeof (item as { msg?: unknown }).msg === "string";
 
 export const listProfiles = () => request<Profile[]>("GET", "/profiles");
 

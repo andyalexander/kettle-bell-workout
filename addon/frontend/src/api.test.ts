@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Activity, Workout } from "./api";
-import { toTiming } from "./api";
+import { readableDetail, toTiming } from "./api";
 
 const activity = (position: number, exercise_name: string): Activity => ({
   position,
@@ -31,5 +31,30 @@ describe("a workout from the wire, as the timer runs it", () => {
       workSeconds: 40,
       restSeconds: 20,
     });
+  });
+});
+
+describe("a refusal, as the screen shows it", () => {
+  it("passes our own reasons through", () => {
+    expect(readableDetail("A profile called Andrew already exists")).toBe(
+      "A profile called Andrew already exists",
+    );
+  });
+
+  it("reads a validation failure's messages, not its JSON", () => {
+    const detail = [
+      {
+        type: "string_too_short",
+        loc: ["body", "name"],
+        msg: "String should have at least 1 character",
+        input: "",
+        ctx: { min_length: 1 },
+      },
+    ];
+    expect(readableDetail(detail)).toBe("String should have at least 1 character");
+  });
+
+  it("falls back to JSON for a shape it doesn't know", () => {
+    expect(readableDetail({ odd: true })).toBe('{"odd":true}');
   });
 });
