@@ -21,10 +21,13 @@ else
   bashio::log.warning "No MQTT service registered with the Supervisor."
 fi
 
-# 0.0.0.0, not 127.0.0.1: the container has its own network namespace, and the
-# published port would otherwise be unreachable from the LAN.
+# Every address, not 127.0.0.1: the container has its own network namespace, and
+# the published port would otherwise be unreachable from the LAN. An empty host,
+# not 0.0.0.0 or "::", because asyncio then opens one socket per family: IPv4 for
+# the watchdog and anyone using the IP, IPv6 for homeassistant.local, which iOS
+# resolves to the Pi's IPv6 address first. "::" alone is IPv6-only under asyncio.
 uvicorn_args=(
-  --host 0.0.0.0
+  --host ""
   --port 8234
   --log-level "${KB_LOG_LEVEL}"
 )
