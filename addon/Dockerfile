@@ -43,6 +43,10 @@ RUN chmod a+x /run.sh
 ARG BUILD_VERSION="dev"
 ARG BUILD_ARCH="aarch64"
 
+# config.yaml's `version`, carried into the app for /api/health and the device
+# page in Home Assistant. Declared this late so a bump rebuilds only the last layers.
+ENV KB_VERSION="${BUILD_VERSION}"
+
 LABEL \
   io.hass.version="${BUILD_VERSION}" \
   io.hass.type="app" \

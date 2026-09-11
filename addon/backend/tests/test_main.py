@@ -1,5 +1,6 @@
 """What the app tells Home Assistant on its own, when it starts (#15)."""
 
+import json
 import sqlite3
 import threading
 from dataclasses import replace
@@ -40,11 +41,11 @@ async def test_startup_announces_every_profile_that_has_trained(
         datetime(2026, 9, 9, 7, 0, tzinfo=UTC),
         datetime(2026, 9, 9, 7, 8, tzinfo=UTC),
     )
-    topics: list[str] = []
+    sent: list[Message] = []
     delivered = threading.Event()
 
     def send(settings: MqttSettings, messages: list[Message]) -> None:
-        topics.extend(message.topic for message in messages)
+        sent.extend(messages)
         delivered.set()
 
     app = create_app(replace(tmp_path_settings, mqtt=BROKER), send=send)
@@ -53,10 +54,12 @@ async def test_startup_announces_every_profile_that_has_trained(
         # Waited for off the event loop, which has to be free to run the publish.
         assert await anyio.to_thread.run_sync(delivered.wait, 5)
 
-    assert topics == [
+    assert [message.topic for message in sent] == [
         "homeassistant/device/kettlebell_profile_1/config",
         "kettlebell/profile/1/state",
     ]
+    # The device page in Home Assistant shows the version the image was built for.
+    assert json.loads(sent[0].payload)["device"]["sw_version"] == "9.9.9"
 
 
 async def test_with_no_broker_nothing_is_sent(tmp_path_settings: Settings) -> None:

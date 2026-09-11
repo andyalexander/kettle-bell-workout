@@ -1,6 +1,8 @@
 [project]
 name = "kettlebell"
-version = "0.1.0"
+# Required by the build backend, and never read. The app's version is the one in
+# addon/config.yaml — see `Settings.version`.
+version = "0.0.0"
 description = "EMOM and interval kettlebell workouts, served as a Home Assistant app."
 readme = "README.md"
 requires-python = ">=3.13"

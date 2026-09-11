@@ -8,6 +8,13 @@ def test_defaults_when_environment_is_empty() -> None:
 
     assert settings.database_path == Path("kettlebell.db")
     assert settings.mqtt is None
+    assert settings.version == "dev"
+
+
+def test_version_is_the_one_the_image_was_built_for() -> None:
+    settings = Settings.from_env({"KB_VERSION": "0.4.1"})
+
+    assert settings.version == "0.4.1"
 
 
 def test_reads_the_variables_run_sh_exports() -> None:

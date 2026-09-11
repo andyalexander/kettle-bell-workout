@@ -19,7 +19,7 @@ from typing import NamedTuple
 from paho.mqtt.client import Client
 from paho.mqtt.enums import CallbackAPIVersion
 
-from kettlebell import __version__, store, workouts
+from kettlebell import store, workouts
 from kettlebell.config import MqttSettings
 from kettlebell.db import connect
 from kettlebell.metrics import ProfileProgress, profile_progress
@@ -131,6 +131,7 @@ class Publisher:
 
     settings: MqttSettings
     database_path: Path
+    version: str
     send: Send
 
     def announce(self, recorded: RecordedWorkout) -> None:
@@ -171,23 +172,23 @@ class Publisher:
         messages = [
             message
             for profile, history in trained
-            for message in _messages(self.settings, profile, profile_progress(history))
+            for message in self._messages(profile, profile_progress(history))
         ]
         if messages:
             self.send(self.settings, messages)
 
+    def _messages(self, profile: Profile, progress: ProfileProgress) -> list[Message]:
+        """Build discovery, then state; both retained so HA has them after a restart."""
+        return [
+            _retained(
+                _discovery_topic(self.settings, profile.id),
+                _discovery(profile, self.version),
+            ),
+            _retained(_state_topic(profile.id), _state(progress)),
+        ]
 
-def _messages(
-    settings: MqttSettings, profile: Profile, progress: ProfileProgress
-) -> list[Message]:
-    """Build discovery, then state — both retained, so HA has them after a restart."""
-    return [
-        _retained(_discovery_topic(settings, profile.id), _discovery(profile)),
-        _retained(_state_topic(profile.id), _state(progress)),
-    ]
 
-
-def _discovery(profile: Profile) -> dict[str, object]:
+def _discovery(profile: Profile, version: str) -> dict[str, object]:
     """Describe one HA device carrying all five sensors."""
     device_id = f"kettlebell_profile_{profile.id}"
     return {
@@ -196,11 +197,11 @@ def _discovery(profile: Profile) -> dict[str, object]:
             "name": f"Kettlebell {profile.name}",
             "manufacturer": APP_NAME,
             "model": "Training profile",
-            "sw_version": __version__,
+            "sw_version": version,
         },
         "origin": {
             "name": APP_NAME,
-            "sw_version": __version__,
+            "sw_version": version,
             "support_url": SUPPORT_URL,
         },
         "state_topic": _state_topic(profile.id),

@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from kettlebell import __version__, store, workouts
+from kettlebell import store, workouts
 from kettlebell.config import MqttSettings, Settings
 from kettlebell.models import Profile, RecordedWorkout, Routine
 from kettlebell.mqtt import Message, Publisher
@@ -23,6 +23,7 @@ BROKER = MqttSettings(
     discovery_prefix="homeassistant",
     ssl=False,
 )
+VERSION = "9.9.9"
 
 type Sent = list[tuple[MqttSettings, list[Message]]]
 
@@ -38,6 +39,7 @@ def publisher(tmp_path_settings: Settings, sent: Sent) -> Publisher:
     return Publisher(
         BROKER,
         tmp_path_settings.database_path,
+        VERSION,
         send=lambda settings, messages: sent.append((settings, messages)),
     )
 
@@ -127,7 +129,7 @@ def test_a_broker_that_fails_is_logged_never_raised(
     def refuse(settings: MqttSettings, messages: list[Message]) -> None:
         raise ConnectionRefusedError("broker down")
 
-    publisher = Publisher(BROKER, tmp_path_settings.database_path, send=refuse)
+    publisher = Publisher(BROKER, tmp_path_settings.database_path, VERSION, send=refuse)
 
     publisher.announce(train(db, andrew, emom, day=9))
 
@@ -151,11 +153,11 @@ def test_discovery_is_one_device_per_profile_with_the_five_sensors(
             "name": "Kettlebell Andrew",
             "manufacturer": "Kettlebell Trainer",
             "model": "Training profile",
-            "sw_version": __version__,
+            "sw_version": VERSION,
         },
         "origin": {
             "name": "Kettlebell Trainer",
-            "sw_version": __version__,
+            "sw_version": VERSION,
             "support_url": "https://github.com/andyalexander/kettle-bell-workout",
         },
         "state_topic": "kettlebell/profile/1/state",

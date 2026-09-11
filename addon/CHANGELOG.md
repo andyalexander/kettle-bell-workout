@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- The app now reports the version you installed. `/api/health` and each
+  profile's device page in Home Assistant said `0.1.0` whatever was running;
+  both now read the version shown in the app store.
+
 ## 0.4.0
 
 - **You can train with it.** Open the app, pick who's training (or add yourself
