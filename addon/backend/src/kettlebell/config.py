@@ -22,6 +22,7 @@ class MqttSettings:
     username: str | None
     password: str | None
     discovery_prefix: str
+    ssl: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,4 +57,6 @@ def _mqtt_from_env(source: Mapping[str, str]) -> MqttSettings | None:
         username=source.get("KB_MQTT_USERNAME") or None,
         password=source.get("KB_MQTT_PASSWORD") or None,
         discovery_prefix=source.get("KB_MQTT_DISCOVERY_PREFIX", "homeassistant"),
+        # bashio renders the service's boolean as the string "true" or "false".
+        ssl=source.get("KB_MQTT_SSL", "false").lower() == "true",
     )

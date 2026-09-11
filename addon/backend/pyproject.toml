@@ -5,7 +5,9 @@ description = "EMOM and interval kettlebell workouts, served as a Home Assistant
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "anyio>=4.11",
     "fastapi>=0.121",
+    "paho-mqtt>=2.1,<3",
     "pillow>=12.3.0",
     "uvicorn[standard]>=0.38",
 ]
