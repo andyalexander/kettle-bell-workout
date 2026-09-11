@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+- `http://homeassistant.local:8234/` works on iPhone and iPad. The app only
+  listened on IPv4, and iOS reaches `homeassistant.local` over IPv6, so the
+  connection was closed before the page loaded. Opening it by IP was unaffected.
+
 ## 0.4.1
 
 - The app now reports the version you installed. `/api/health` and each
