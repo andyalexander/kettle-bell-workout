@@ -462,6 +462,13 @@ likelihood:
    certificate if needed.
 4. You typed `http://` instead of `https://`.
 
+**The Home Screen icon is a generic one, not the bell** — full trust isn't
+switched on (Part 7.3), even though the app loads. If Safari showed a warning
+and you tapped through to visit the site anyway, the page works, but iOS
+downloads the Home Screen icon separately and refuses it over a connection it
+doesn't fully trust. Turn on full trust, then remove the icon and add it again
+(Part 8) with *Open as Web App* on.
+
 **The app won't start, and the log says `SSL is on but /ssl/… was not found`** —
 the `certfile` or `keyfile` option doesn't match a file in the `ssl` folder.
 Compare the spelling exactly (it is case-sensitive) and use the file name only,
