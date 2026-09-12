@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4
+
+- More room at the top: the title on the picker, routine list and New profile
+  screens sits lower, clear of the clock and the Dynamic Island, with a little
+  more space between it and what's below.
+
 ## 0.4.3
 
 - **Add it to your Home Screen and it opens like an app**: full screen, no

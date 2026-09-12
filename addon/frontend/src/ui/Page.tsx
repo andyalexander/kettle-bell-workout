@@ -9,7 +9,11 @@ interface PageProps {
   readonly children?: ReactNode;
 }
 
-/** The shell of every screen before the workout: dim ground, one big title. */
+/**
+ * The shell of every screen before the workout: dim ground, one big title.
+ * The top padding clears the translucent status bar with room to spare, judged
+ * on the iPhone as a Home Screen app (#35).
+ */
 export function Page({ title, onBack, children }: PageProps) {
   return (
     <main
@@ -19,7 +23,7 @@ export function Page({ title, onBack, children }: PageProps) {
           "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
       }}
     >
-      <div className="flex flex-col items-center gap-[5vmin] px-[5vmin] pt-[6vmin] pb-[8vmin]">
+      <div className="flex flex-col items-center gap-[7vmin] px-[5vmin] pt-[16vmin] pb-[8vmin]">
         <header className="flex w-full max-w-[1100px] items-center justify-center gap-[4vmin]">
           {onBack && (
             <CircleButton variant="outline" onClick={onBack}>
