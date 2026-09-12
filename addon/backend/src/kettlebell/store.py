@@ -34,7 +34,6 @@ __all__ = [
     "list_weight_overrides",
     "set_avatar",
     "set_slots",
-    "set_sound_enabled",
     "set_weight_override",
     "update_exercise",
 ]
@@ -55,27 +54,17 @@ class SlotSpec:
 # --- profiles ---------------------------------------------------------------
 
 
-def add_profile(
-    connection: sqlite3.Connection, name: str, *, sound_enabled: bool = False
-) -> Profile:
-    """Create a profile. Sound is off by default; the picker shows name and avatar."""
+def add_profile(connection: sqlite3.Connection, name: str) -> Profile:
+    """Create a profile; the picker shows its name and avatar."""
     with transaction(connection):
-        cursor = connection.execute(
-            "INSERT INTO profile (name, sound_enabled) VALUES (?, ?)",
-            (name, int(sound_enabled)),
-        )
-    return Profile(
-        id=int(cursor.lastrowid or 0),
-        name=name,
-        sound_enabled=sound_enabled,
-        avatar_mime=None,
-    )
+        cursor = connection.execute("INSERT INTO profile (name) VALUES (?)", (name,))
+    return Profile(id=int(cursor.lastrowid or 0), name=name, avatar_mime=None)
 
 
 def list_profiles(connection: sqlite3.Connection) -> list[Profile]:
     """Every profile, by name — the picker's order."""
     rows = connection.execute(
-        "SELECT id, name, sound_enabled, avatar_mime FROM profile ORDER BY name"
+        "SELECT id, name, avatar_mime FROM profile ORDER BY name"
     ).fetchall()
     return [_to_profile(row) for row in rows]
 
@@ -83,21 +72,10 @@ def list_profiles(connection: sqlite3.Connection) -> list[Profile]:
 def get_profile(connection: sqlite3.Connection, profile_id: int) -> Profile | None:
     """One profile, or None when it has been deleted."""
     row = connection.execute(
-        "SELECT id, name, sound_enabled, avatar_mime FROM profile WHERE id = ?",
+        "SELECT id, name, avatar_mime FROM profile WHERE id = ?",
         (profile_id,),
     ).fetchone()
     return None if row is None else _to_profile(row)
-
-
-def set_sound_enabled(
-    connection: sqlite3.Connection, profile_id: int, *, enabled: bool
-) -> None:
-    """Set the audio-cue preference, which follows the person across devices."""
-    with transaction(connection):
-        _ = connection.execute(
-            "UPDATE profile SET sound_enabled = ? WHERE id = ?",
-            (int(enabled), profile_id),
-        )
 
 
 def set_avatar(
@@ -364,7 +342,6 @@ def _to_profile(row: sqlite3.Row) -> Profile:
     return Profile(
         id=int(row["id"]),
         name=str(row["name"]),
-        sound_enabled=bool(row["sound_enabled"]),
         avatar_mime=None if mime is None else str(mime),
     )
 

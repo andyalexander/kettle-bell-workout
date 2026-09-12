@@ -7,7 +7,6 @@ import { ProfilePicker } from "./profiles/ProfilePicker";
 import { RoutineList } from "./routines/RoutineList";
 import { CircleButton } from "./ui/CircleButton";
 import { Page } from "./ui/Page";
-import { unlockAudio } from "./workout/sound";
 import { WorkoutScreen } from "./workout/WorkoutScreen";
 
 interface AppProps {
@@ -16,7 +15,7 @@ interface AppProps {
   readonly flushed: Promise<void>;
 }
 
-/** The routine list holds an id, so a reload after a workout is never stale. */
+/** The routine list holds an id, so a reload never leaves it stale. */
 type Screen =
   | { readonly name: "picker" }
   | { readonly name: "routines"; readonly profileId: number }
@@ -60,7 +59,6 @@ export function App({ queue, flushed }: AppProps) {
   };
 
   const handleStart = async (profile: Profile, routine: RoutineSummary) => {
-    unlockAudio(); // inside the tap: iOS won't let the fetch's callback do it
     const request = ++startRequest.current;
     setProblem(null);
     setStartingRoutineId(routine.id);
@@ -82,18 +80,13 @@ export function App({ queue, flushed }: AppProps) {
     setScreen({ name: "picker" });
   };
 
-  const handleWorkoutExit = (profile: Profile) => {
-    setScreen({ name: "routines", profileId: profile.id });
-    void load(); // sound may have changed mid-workout
-  };
-
   if (screen.name === "workout") {
     return (
       <WorkoutScreen
         profile={screen.profile}
         workout={screen.workout}
         queue={queue}
-        onExit={() => handleWorkoutExit(screen.profile)}
+        onExit={() => setScreen({ name: "routines", profileId: screen.profile.id })}
       />
     );
   }

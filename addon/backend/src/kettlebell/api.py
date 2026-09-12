@@ -62,23 +62,17 @@ class ProfileOut(BaseModel):
 
     id: int
     name: str
-    sound_enabled: bool
     # Always null until avatar upload exists; the picker falls back to a default.
     avatar_url: str | None
 
     @classmethod
     def of(cls, profile: Profile) -> ProfileOut:
         """Render a stored profile for the wire."""
-        return cls(
-            id=profile.id,
-            name=profile.name,
-            sound_enabled=profile.sound_enabled,
-            avatar_url=None,
-        )
+        return cls(id=profile.id, name=profile.name, avatar_url=None)
 
 
 class ProfileIn(BaseModel):
-    """A new profile: a name alone. Sound starts off; avatars come later."""
+    """A new profile: a name alone. Avatars come later."""
 
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -98,24 +92,6 @@ def create_profile(body: ProfileIn, db: Db) -> ProfileOut:
         raise HTTPException(
             status_code=422, detail=f"a profile named {body.name!r} already exists"
         ) from None
-
-
-class SoundIn(BaseModel):
-    """The one setting a profile carries across devices."""
-
-    sound_enabled: bool
-
-
-@router.patch("/profiles/{profile_id}")
-def set_sound(profile_id: int, body: SoundIn, db: Db) -> ProfileOut:
-    """Switch audio cues. The client fires this and forgets it."""
-    # Writing first is safe: an UPDATE of a profile that does not exist touches
-    # nothing, and the read that follows is what decides the 404.
-    store.set_sound_enabled(db, profile_id, enabled=body.sound_enabled)
-    profile = store.get_profile(db, profile_id)
-    if profile is None:
-        raise HTTPException(status_code=404, detail=f"no profile {profile_id}")
-    return ProfileOut.of(profile)
 
 
 class RoutineOut(BaseModel):

@@ -10,9 +10,6 @@ import type { Phase, TimerState } from "../timer/schedule";
 /** Above this many activities the pips become slivers, so they give way to text (#4). */
 export const MAX_PIPS = 10;
 
-/** How many seconds before a turn change the short beeps count down (#3). */
-const COUNTDOWN_BEEPS = 3;
-
 /** The whole second on the display: the clock counts `40 … 1`, never `0` mid-turn. */
 const shown = (state: TimerState): number => Math.ceil(state.secondsRemaining);
 
@@ -94,50 +91,31 @@ export function loadLabel(activity: Activity): string {
 // --- cues -------------------------------------------------------------------
 
 export type Flash = "turn" | "finish";
-export type Beep = "short" | "long";
-
-/** What the screen and the speaker do as one reading of the timer gives way to the next. */
-export interface Cue {
-  readonly flash: Flash | null;
-  readonly beep: Beep | null;
-}
-
-const QUIET: Cue = { flash: null, beep: null };
 
 /**
- * The cue between two consecutive published readings (#3, #4):
+ * The flash between two consecutive published readings (#3, #4). The app is
+ * silent, so this is every signal the workout gives beyond its colour:
  *
- * - a white flash and a long beep on every **turn** boundary, prep → turn 1
- *   included — work → rest already has its colour change, so it gets neither;
- * - the held green **finish** flash, with a long beep, when the last turn ends;
- * - short beeps at 3-2-1 before a turn change.
+ * - a white flash on every **turn** boundary, prep → turn 1 included — work →
+ *   rest already has its colour change, so it gets none;
+ * - the held green **finish** flash when the last turn ends.
  *
  * The timer publishes every whole second, so consecutive readings step the
  * display by exactly one. Since every hide is a pause (#34), a workout no
- * longer jumps; if a reading ever does, it stays quiet rather than fire late.
+ * longer jumps; if a reading ever does, it stays dark rather than flash late.
  */
-export function cueBetween(prev: TimerState, next: TimerState, restSeconds: number): Cue {
-  if (!stepsByOneSecond(prev, next)) return QUIET;
-  if (next.phase === "done") return { flash: "finish", beep: "long" };
+export function flashBetween(prev: TimerState, next: TimerState): Flash | null {
+  if (!stepsByOneSecond(prev, next)) return null;
+  if (next.phase === "done") return "finish";
 
   const newTurn = prev.phase === "prep" ? next.phase !== "prep" : next.turn !== prev.turn;
-  if (newTurn) return { flash: "turn", beep: "long" };
-
-  const countingDown =
-    endsOnTurnBoundary(next.phase, restSeconds) && shown(next) <= COUNTDOWN_BEEPS;
-  return countingDown ? { flash: null, beep: "short" } : QUIET;
+  return newTurn ? "turn" : null;
 }
 
 /** Within a phase the second ticks down by one; across a seam the last second was 1. */
 function stepsByOneSecond(prev: TimerState, next: TimerState): boolean {
   const samePhase = prev.phase === next.phase && prev.turn === next.turn;
   return samePhase ? shown(next) === shown(prev) - 1 : shown(prev) <= 1;
-}
-
-/** Whether this phase's last second is followed by a new turn. */
-function endsOnTurnBoundary(phase: Phase, restSeconds: number): boolean {
-  if (phase === "work") return restSeconds === 0;
-  return phase === "prep" || phase === "rest";
 }
 
 // --- summary ----------------------------------------------------------------

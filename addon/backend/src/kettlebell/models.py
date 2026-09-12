@@ -26,7 +26,6 @@ class Profile:
 
     id: int
     name: str
-    sound_enabled: bool
     avatar_mime: str | None
 
 

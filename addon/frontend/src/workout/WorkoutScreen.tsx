@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type { FinishedWorkout, Profile, Workout } from "../api";
-import { setSoundEnabled, toTiming } from "../api";
+import { toTiming } from "../api";
 import type { FinishQueue } from "../finishQueue";
 import type { Phase, TimerState } from "../timer/schedule";
 import { useWorkoutTimer } from "../timer/useWorkoutTimer";
@@ -12,7 +12,7 @@ import type { Flash } from "./display";
 import {
   PHASE_WORDS,
   counterLine,
-  cueBetween,
+  flashBetween,
   formatClock,
   formatDuration,
   headline,
@@ -21,7 +21,6 @@ import {
   pips,
   summarise,
 } from "./display";
-import { beep, unlockAudio } from "./sound";
 import { useShrinkToFit } from "./useShrinkToFit";
 
 interface WorkoutScreenProps {
@@ -50,24 +49,17 @@ const AUTO_LOCK_HINT = "If the screen dims, set Auto-Lock to Never.";
 export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreenProps) {
   const timing = useMemo(() => toTiming(workout), [workout]);
   const { state, hold, leadIn, pause, resume } = useWorkoutTimer(timing);
-  const [soundOn, setSoundOn] = useState(profile.sound_enabled);
   const [confirmingAbort, setConfirmingAbort] = useState(false);
   const [showHint] = useState(shouldShowAutoLockHint);
   const flashRef = useRef<HTMLDivElement>(null);
 
-  useCues(state, workout.rest_seconds, soundOn, flashRef);
+  useFlashes(state, flashRef);
   const finished = useFinish(state, profile.id, workout, queue);
 
   // Once per device: seen during prep, then gone for good.
   useEffect(() => {
     if (showHint) dismissAutoLockHint();
   }, [showHint]);
-
-  const toggleSound = () => {
-    const on = !soundOn;
-    setSoundOn(on);
-    setSoundEnabled(profile.id, on);
-  };
 
   // Paused and the lead-in share the neutral ground: neither is a phase.
   const background = hold === "running" ? PHASE_BACKGROUNDS[state.phase] : "bg-ground";
@@ -79,9 +71,6 @@ export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreen
         padding:
           "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
       }}
-      // A click, not pointerdown, which isn't a gesture for touch. Every tap
-      // bubbles here, Resume's included, so a hide's stale audio is replaced.
-      onClick={unlockAudio}
     >
       {confirmingAbort ? (
         <Overlay
@@ -117,8 +106,6 @@ export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreen
           workout={workout}
           leadIn={leadIn}
           hint={showHint && state.phase === "prep" && leadIn === null ? AUTO_LOCK_HINT : null}
-          soundOn={soundOn}
-          onToggleSound={toggleSound}
           onPause={pause}
         />
       )}
@@ -138,30 +125,21 @@ const FLASH_STYLE: Readonly<Record<Flash, { color: string; ms: number }>> = {
 };
 
 /**
- * Fire each reading's cue: a flash by the Web Animations API, so a turn
- * boundary costs no render, and a beep when this profile has sound on.
+ * Fire each reading's flash by the Web Animations API, so a turn boundary
+ * costs no render. The app makes no sound: the screen carries every signal.
  */
-function useCues(
-  state: TimerState,
-  restSeconds: number,
-  soundOn: boolean,
-  flashRef: RefObject<HTMLDivElement | null>,
-): void {
+function useFlashes(state: TimerState, flashRef: RefObject<HTMLDivElement | null>): void {
   const previous = useRef(state);
 
   useEffect(() => {
-    const cue = cueBetween(previous.current, state, restSeconds);
+    const flash = flashBetween(previous.current, state);
     previous.current = state;
-    if (cue.flash) {
-      const { color, ms } = FLASH_STYLE[cue.flash];
-      const element = flashRef.current;
-      if (element) {
-        element.style.background = color;
-        element.animate(FLASH_KEYFRAMES[cue.flash], { duration: ms, easing: "ease-out" });
-      }
-    }
-    if (cue.beep && soundOn) beep(cue.beep);
-  }, [state, restSeconds, soundOn, flashRef]);
+    const element = flashRef.current;
+    if (!flash || !element) return;
+    const { color, ms } = FLASH_STYLE[flash];
+    element.style.background = color;
+    element.animate(FLASH_KEYFRAMES[flash], { duration: ms, easing: "ease-out" });
+  }, [state, flashRef]);
 }
 
 /**
@@ -204,8 +182,6 @@ interface LiveViewProps {
   /** The lead-in's second, shown where the countdown sits, or null outside one. */
   readonly leadIn: number | null;
   readonly hint: string | null;
-  readonly soundOn: boolean;
-  readonly onToggleSound: () => void;
   readonly onPause: () => void;
 }
 
@@ -215,7 +191,7 @@ const LEAD_IN_WORD = "Get ready";
  * Variant D: what and how heavy at the top, the countdown dominating, controls
  * at the foot. During a lead-in the 3-2-1 takes the countdown's place.
  */
-function LiveView({ state, workout, leadIn, hint, soundOn, onToggleSound, onPause }: LiveViewProps) {
+function LiveView({ state, workout, leadIn, hint, onPause }: LiveViewProps) {
   const { activity, upcoming } = headline(state, workout);
   const next = upcoming ? null : nextActivity(state, workout);
   const pipRow = pips(state, workout.activities.length);
@@ -269,35 +245,12 @@ function LiveView({ state, workout, leadIn, hint, soundOn, onToggleSound, onPaus
         <CircleButton variant="tinted" onClick={onPause}>
           Pause
         </CircleButton>
-        <CircleButton
-          variant="tinted"
-          size="small"
-          className="justify-self-end"
-          onClick={onToggleSound}
-          aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
-          aria-pressed={soundOn}
-        >
-          <SpeakerIcon on={soundOn} />
-        </CircleButton>
       </footer>
     </>
   );
 }
 
 const PIP_COLOURS = { done: "bg-white/55", now: "bg-white", todo: "bg-black/30" } as const;
-
-function SpeakerIcon({ on }: { readonly on: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" className="size-1/2" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor" />
-      {on ? (
-        <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />
-      ) : (
-        <path d="m16 9 6 6m0-6-6 6" />
-      )}
-    </svg>
-  );
-}
 
 interface SummaryProps {
   readonly finished: FinishedWorkout;

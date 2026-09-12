@@ -52,14 +52,14 @@ async def test_profiles_list_by_name(
     client: AsyncClient, db: sqlite3.Connection
 ) -> None:
     _ = store.add_profile(db, "Guest")
-    _ = store.add_profile(db, "Andrew", sound_enabled=True)
+    _ = store.add_profile(db, "Andrew")
 
     response = await client.get("/api/profiles")
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": 2, "name": "Andrew", "sound_enabled": True, "avatar_url": None},
-        {"id": 1, "name": "Guest", "sound_enabled": False, "avatar_url": None},
+        {"id": 2, "name": "Andrew", "avatar_url": None},
+        {"id": 1, "name": "Guest", "avatar_url": None},
     ]
 
 
@@ -67,7 +67,7 @@ async def test_a_profile_is_created_from_a_name_alone(client: AsyncClient) -> No
     response = await client.post("/api/profiles", json={"name": "Andrew"})
 
     assert response.status_code == 201
-    created = {"id": 1, "name": "Andrew", "sound_enabled": False, "avatar_url": None}
+    created = {"id": 1, "name": "Andrew", "avatar_url": None}
     assert response.json() == created
     assert (await client.get("/api/profiles")).json() == [created]
 
@@ -86,29 +86,6 @@ async def test_a_name_already_taken_is_refused(client: AsyncClient) -> None:
 
     assert response.status_code == 422
     assert len((await client.get("/api/profiles")).json()) == 1
-
-
-async def test_sound_is_switched_and_the_profile_returned(
-    client: AsyncClient, db: sqlite3.Connection
-) -> None:
-    andrew = store.add_profile(db, "Andrew")
-
-    response = await client.patch(
-        f"/api/profiles/{andrew.id}", json={"sound_enabled": True}
-    )
-
-    assert response.status_code == 200
-    switched = {"id": 1, "name": "Andrew", "sound_enabled": True, "avatar_url": None}
-    assert response.json() == switched
-    assert (await client.get("/api/profiles")).json() == [switched]
-
-
-async def test_switching_sound_on_an_unknown_profile_is_not_found(
-    client: AsyncClient,
-) -> None:
-    response = await client.patch("/api/profiles/99", json={"sound_enabled": True})
-
-    assert response.status_code == 404
 
 
 async def test_routines_list_with_their_length_and_exercises(

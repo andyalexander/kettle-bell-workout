@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from kettlebell.db import MIGRATIONS, apply_migrations, open_database, transaction
+from kettlebell.db import (
+    MIGRATIONS,
+    apply_migrations,
+    connect,
+    open_database,
+    transaction,
+)
 
 
 def test_migrations_stamp_the_user_version(db: sqlite3.Connection) -> None:
@@ -28,6 +34,23 @@ def test_migrations_are_idempotent(tmp_path: Path) -> None:
         == tables
     )
     second.close()
+
+
+def test_dropping_sound_keeps_every_profile(tmp_path: Path) -> None:
+    # A database from before the app went silent, as the Pi's is.
+    old = connect(tmp_path / "kettlebell.db")
+    _ = old.executescript(
+        f"BEGIN;\n{MIGRATIONS[0]}\nPRAGMA user_version = 1;\n"
+        "INSERT INTO profile (name, sound_enabled) VALUES ('Andrew', 1);\nCOMMIT;"
+    )
+
+    assert apply_migrations(old) == len(MIGRATIONS)
+    columns = {row["name"] for row in old.execute("PRAGMA table_info(profile)")}
+    assert "sound_enabled" not in columns
+    assert [row["name"] for row in old.execute("SELECT name FROM profile")] == [
+        "Andrew"
+    ]
+    old.close()
 
 
 def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
