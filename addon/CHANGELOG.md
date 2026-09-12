@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+
+- **Pause sits in the middle** of the workout screen, the same size as before.
+  The sound button is smaller and moves to the bottom right, out of the way.
+
 ## 0.5.1
 
 - **HTTPS works.** With `ssl` on, the app refused to start saying the
