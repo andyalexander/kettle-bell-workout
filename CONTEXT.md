@@ -39,6 +39,16 @@ activity.
 It is an app constant, not part of a routine, and sits **outside** the workout, so
 it never inflates a workout's recorded duration.
 
+**Pause** — the workout frozen at an instant, by the pause button or by the screen
+hiding (locking, or leaving the app). Both are the same pause: a hidden screen
+freezes the workout at the moment it hid, because a turn nobody can see must not
+advance. Nothing counts while paused.
+
+**Lead-in** — the 3-second countdown between tapping Resume and the workout
+carrying on from the instant it paused, giving time to get back to the bell. Every
+resume has one, however the pause began. Like prep, it sits **outside** the workout.
+_Avoid_: second prep, countdown (for this)
+
 **Workout** — one routine, as one profile is to perform it on one occasion: the
 routine's name, rounds and timing, and an ordered list of **activities**. **Fixed**
 when it starts, **recorded** when it completes, never changed after. History is the
