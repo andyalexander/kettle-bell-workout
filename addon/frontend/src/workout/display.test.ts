@@ -155,7 +155,7 @@ describe("cues", () => {
     expect(cue(intervals, end, end + 5)).toEqual({ flash: null, beep: null });
   });
 
-  it("catches up silently after a hidden stretch", () => {
+  it("stays quiet if the reading ever jumps, rather than firing a cue late", () => {
     const boundary = turnStart(intervals, 2);
     expect(cue(intervals, boundary - 30, boundary + 5)).toEqual({ flash: null, beep: null });
     const end = turnStart(intervals, 6);

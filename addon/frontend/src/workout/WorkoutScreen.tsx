@@ -49,7 +49,7 @@ const AUTO_LOCK_HINT = "If the screen dims, set Auto-Lock to Never.";
  */
 export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreenProps) {
   const timing = useMemo(() => toTiming(workout), [workout]);
-  const { state, paused, awaySeconds, pause, resume } = useWorkoutTimer(timing);
+  const { state, hold, leadIn, pause, resume } = useWorkoutTimer(timing);
   const [soundOn, setSoundOn] = useState(profile.sound_enabled);
   const [confirmingAbort, setConfirmingAbort] = useState(false);
   const [showHint] = useState(shouldShowAutoLockHint);
@@ -69,7 +69,8 @@ export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreen
     setSoundEnabled(profile.id, on);
   };
 
-  const background = paused ? "bg-ground" : PHASE_BACKGROUNDS[state.phase];
+  // Paused and the lead-in share the neutral ground: neither is a phase.
+  const background = hold === "running" ? PHASE_BACKGROUNDS[state.phase] : "bg-ground";
 
   return (
     <main
@@ -93,10 +94,10 @@ export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreen
             </>
           }
         />
-      ) : paused ? (
+      ) : hold === "paused" ? (
         <Overlay
-          title={awaySeconds === null ? "Paused" : `Away for ${formatDuration(awaySeconds)}`}
-          message={awaySeconds === null ? counterLine(state, workout) : "Resume here, or abort."}
+          title="Paused"
+          message={counterLine(state, workout)}
           actions={
             <>
               <CircleButton onClick={resume}>Resume</CircleButton>
@@ -112,7 +113,8 @@ export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreen
         <LiveView
           state={state}
           workout={workout}
-          hint={showHint && state.phase === "prep" ? AUTO_LOCK_HINT : null}
+          leadIn={leadIn}
+          hint={showHint && state.phase === "prep" && leadIn === null ? AUTO_LOCK_HINT : null}
           soundOn={soundOn}
           onToggleSound={toggleSound}
           onPause={pause}
@@ -197,14 +199,21 @@ function useFinish(
 interface LiveViewProps {
   readonly state: TimerState;
   readonly workout: Workout;
+  /** The lead-in's second, shown where the countdown sits, or null outside one. */
+  readonly leadIn: number | null;
   readonly hint: string | null;
   readonly soundOn: boolean;
   readonly onToggleSound: () => void;
   readonly onPause: () => void;
 }
 
-/** Variant D: what and how heavy at the top, the countdown dominating, controls at the foot. */
-function LiveView({ state, workout, hint, soundOn, onToggleSound, onPause }: LiveViewProps) {
+const LEAD_IN_WORD = "Get ready";
+
+/**
+ * Variant D: what and how heavy at the top, the countdown dominating, controls
+ * at the foot. During a lead-in the 3-2-1 takes the countdown's place.
+ */
+function LiveView({ state, workout, leadIn, hint, soundOn, onToggleSound, onPause }: LiveViewProps) {
   const { activity, upcoming } = headline(state, workout);
   const next = upcoming ? null : nextActivity(state, workout);
   const pipRow = pips(state, workout.activities.length);
@@ -239,10 +248,10 @@ function LiveView({ state, workout, hint, soundOn, onToggleSound, onPause }: Liv
 
       <section className="flex flex-1 flex-col items-center justify-center">
         <p className="text-[clamp(18px,4vmin,42px)] font-extrabold tracking-[0.12em] uppercase opacity-90">
-          {PHASE_WORDS[state.phase]}
+          {leadIn === null ? PHASE_WORDS[state.phase] : LEAD_IN_WORD}
         </p>
         <p className="text-[clamp(120px,42vmin,460px)] leading-[0.85] font-extrabold tracking-[-0.03em]">
-          {formatClock(state.secondsRemaining)}
+          {leadIn ?? formatClock(state.secondsRemaining)}
         </p>
       </section>
 
@@ -328,7 +337,7 @@ interface OverlayProps {
   readonly actions: ReactNode;
 }
 
-/** Paused, away, abort and done share one shape: a word, a line, round buttons. */
+/** Paused, abort and done share one shape: a word, a line, round buttons. */
 function Overlay({ title, message, actions }: OverlayProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[4vmin] p-[6vmin] text-center">

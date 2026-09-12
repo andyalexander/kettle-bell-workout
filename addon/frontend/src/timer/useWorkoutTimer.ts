@@ -1,50 +1,60 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Clock } from "./clock";
-import { elapsedSeconds, pauseClock, resumeClock, startClock, verdictOnReturn } from "./clock";
+import { elapsedSeconds } from "./clock";
+import type { Hold, Run } from "./pause";
+import {
+  beginLeadIn,
+  hideRun,
+  holdOf,
+  leadInRemaining,
+  pauseRun,
+  settleRun,
+  startRun,
+} from "./pause";
 import type { TimerState, WorkoutTiming } from "./schedule";
 import { schedule } from "./schedule";
 import type { ScreenLock } from "./wakeLock";
 import { keepScreenAwake } from "./wakeLock";
 
 /**
- * Drives the pure engine from `requestAnimationFrame`, holds the pause state,
- * applies the backgrounding threshold rule and keeps the screen awake.
+ * Drives the pure engine from `requestAnimationFrame`, holds the pause and
+ * lead-in, pauses whenever the screen hides and keeps the screen awake.
  *
  * There is no abort here: aborting writes nothing at all (issue #3), so it is
  * the caller simply leaving the screen.
  */
 export interface WorkoutTimer {
   readonly state: TimerState;
-  readonly paused: boolean;
-  /**
-   * Seconds the tab was hidden for, when that was a whole turn or more. The
-   * workout is frozen at the moment it hid and the screen must ask before
-   * going on: "Away for 4:12 — Resume here, or Abort."
-   */
-  readonly awaySeconds: number | null;
+  readonly hold: Hold;
+  /** The lead-in's whole second on display, 3 → 2 → 1, or null outside one. */
+  readonly leadIn: number | null;
+  /** Freeze the workout; during a lead-in, go back to paused. */
   pause(): void;
-  /** Resume, discounting the paused or hidden stretch. */
+  /** Start the lead-in; the workout carries on from the frozen instant as it ends. */
   resume(): void;
 }
 
 export function useWorkoutTimer(timing: WorkoutTiming): WorkoutTimer {
-  const clockRef = useRef<Clock | null>(null);
-  clockRef.current ??= startClock(performance.now());
+  const [initial] = useState(() => startRun(performance.now()));
+  const runRef = useRef(initial);
 
   const readState = useCallback(
-    () => schedule(timing, elapsedSeconds(clockRef.current as Clock, performance.now())),
+    (run: Run, now: number) => schedule(timing, elapsedSeconds(run.clock, now)),
     [timing],
   );
 
-  const [state, setState] = useState<TimerState>(readState);
-  const [paused, setPaused] = useState(false);
-  const [awaySeconds, setAwaySeconds] = useState<number | null>(null);
+  const [state, setState] = useState<TimerState>(() => readState(initial, performance.now()));
+  const [hold, setHold] = useState<Hold>("running");
+  const [leadIn, setLeadIn] = useState<number | null>(null);
 
   // The engine is recomputed every frame, but only a change the human can see
   // is worth a render: the phase, the turn, or the whole second on the display.
+  // Each frame also ends a lead-in that has run out.
   const publish = useCallback(() => {
-    const next = readState();
+    const now = performance.now();
+    const run = settleRun(runRef.current, now);
+    runRef.current = run;
+    const next = readState(run, now);
     setState((current) =>
       current.phase === next.phase &&
       current.turn === next.turn &&
@@ -52,6 +62,9 @@ export function useWorkoutTimer(timing: WorkoutTiming): WorkoutTimer {
         ? current
         : next,
     );
+    setHold(holdOf(run));
+    const remaining = leadInRemaining(run, now);
+    setLeadIn(remaining === null ? null : Math.ceil(remaining));
   }, [readState]);
 
   useEffect(() => {
@@ -62,45 +75,27 @@ export function useWorkoutTimer(timing: WorkoutTiming): WorkoutTimer {
     return () => cancelAnimationFrame(frame);
   }, [publish]);
 
-  const pause = useCallback(() => {
-    clockRef.current = pauseClock(clockRef.current as Clock, performance.now());
-    setPaused(true);
-    publish();
-  }, [publish]);
-
-  const resume = useCallback(() => {
-    clockRef.current = resumeClock(clockRef.current as Clock, performance.now());
-    setPaused(false);
-    setAwaySeconds(null);
-    publish();
-  }, [publish]);
-
-  // Backgrounding: freeze at the moment the tab hid, not at the moment it came
-  // back, so a long absence cannot be counted as work.
-  useEffect(() => {
-    let hiddenAt: number | null = null;
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        hiddenAt = performance.now();
-        return;
-      }
-      if (hiddenAt === null) return;
-      const away = (performance.now() - hiddenAt) / 1000;
-      const current = readState();
-      const verdict = verdictOnReturn(away, current.turnSeconds);
-      if (verdict.kind === "freeze" && current.phase !== "done") {
-        clockRef.current = pauseClock(clockRef.current as Clock, hiddenAt);
-        setPaused(true);
-        setAwaySeconds(verdict.awaySeconds);
-      }
-      hiddenAt = null;
+  const change = useCallback(
+    (step: (run: Run, now: number) => Run) => {
+      runRef.current = step(runRef.current, performance.now());
       publish();
+    },
+    [publish],
+  );
+
+  const pause = useCallback(() => change(pauseRun), [change]);
+  const resume = useCallback(() => change(beginLeadIn), [change]);
+
+  // Every hide is a pause, frozen at the instant the screen hid (issue #34).
+  // Coming back changes nothing: the workout waits on the paused screen.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) change((run, now) => hideRun(run, now, timing));
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [publish, readState]);
+  }, [change, timing]);
 
   // Hold the screen awake for as long as the workout is on screen, and take the
   // lock again after a hide: the native API drops it when the tab is hidden.
@@ -132,5 +127,5 @@ export function useWorkoutTimer(timing: WorkoutTiming): WorkoutTimer {
     };
   }, []);
 
-  return { state, paused, awaySeconds, pause, resume };
+  return { state, hold, leadIn, pause, resume };
 }
