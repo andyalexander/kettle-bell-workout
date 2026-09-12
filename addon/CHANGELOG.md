@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- **The beeps work on the iPhone**, including after the phone locks. Locking
+  silently broke the sound until the app was reopened; now tapping Resume
+  brings it back. Beeps still follow the Silent switch, and music from other
+  apps keeps playing.
+
 ## 0.5.0
 
 - **Locking the phone pauses the workout.** It used to run on with the screen
