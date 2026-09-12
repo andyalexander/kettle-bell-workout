@@ -60,28 +60,30 @@ appears on its own — the app already checks for it. The work is in getting a
 certificate the iPad will trust.
 
 You do **not** need a domain name, public DNS, or a certificate authority on the
-internet. A certificate can name an IP address directly, so
-`https://192.168.2.10:8234/` works with nothing but a certificate authority of your
-own. On a Mac, `mkcert` does the whole job:
+internet — only a certificate authority of your own. A full step-by-step guide for
+a Mac, starting from nothing installed, is in
+[`docs/https-local-ca-mac.md`](https://github.com/andyalexander/kettle-bell-workout/blob/main/docs/https-local-ca-mac.md).
+In outline, `mkcert` does the whole job:
 
 ```bash
 brew install mkcert
 mkcert -install          # creates your local CA
-mkcert 192.168.2.10      # a certificate naming the Pi's IP address
+mkcert -cert-file kettlebell.pem -key-file kettlebell-key.pem \
+  homeassistant.local 192.168.2.10   # the Pi's name and IP address
 ```
 
-That leaves `192.168.2.10.pem` and `192.168.2.10-key.pem`. Then:
+Then:
 
-1. Copy both into the Pi's `/ssl` folder (the Samba or File Editor app is the
+1. Copy both files into the Pi's `/ssl` folder (the Samba share app is the
    easiest route).
-2. Set `ssl: true`, `certfile: 192.168.2.10.pem`, `keyfile: 192.168.2.10-key.pem`,
+2. Set `ssl: true`, `certfile: kettlebell.pem`, `keyfile: kettlebell-key.pem`,
    and restart the app.
 3. Trust your CA on **each** iPhone and iPad. `mkcert -CAROOT` prints the folder
    holding `rootCA.pem`; AirDrop or email that file to the device, install it under
    *Settings → General → VPN & Device Management*, then switch it on under
    *Settings → General → About → Certificate Trust Settings*.
-4. Browse to `https://192.168.2.10:8234/`. Use the address the certificate names —
-   `homeassistant.local` will not match a certificate issued for the IP.
+4. Browse to `https://homeassistant.local:8234/` (or the IP) and add it to the
+   Home Screen afresh — the old `http://` icon is a different app to iOS.
 
 The cost is step 3, once per device, and repeating the whole thing when the
 certificate expires. Apple's 398-day limit on certificate lifetime
