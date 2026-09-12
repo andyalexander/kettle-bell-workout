@@ -16,7 +16,8 @@ you have told the iPhone to trust your stamp. Nothing touches the internet: no
 domain name, no public DNS, no ports opened on your router.
 
 Allow 30–45 minutes the first time. After that, the only upkeep is a renewal
-roughly every two years (see [Renewing](#renewing-in-about-two-years)).
+roughly every two years (see
+[Updating the certificate when it expires](#updating-the-certificate-when-it-expires)).
 
 Checked against current documentation on 12 September 2026 — see
 [Sources](#sources).
@@ -33,8 +34,9 @@ Checked against current documentation on 12 September 2026 — see
 8. [Trust your CA on each iPhone and iPad](#part-7--trust-your-ca-on-each-iphone-and-ipad)
 9. [Put the app back on the Home Screen](#part-8--put-the-app-back-on-the-home-screen)
 10. [Check the screen stays awake](#part-9--check-the-screen-stays-awake)
-11. [Troubleshooting](#troubleshooting), [Renewing](#renewing-in-about-two-years),
-    [Undoing it all](#undoing-it-all)
+11. [Troubleshooting](#troubleshooting)
+12. [Updating the certificate when it expires](#updating-the-certificate-when-it-expires)
+13. [Undoing it all](#undoing-it-all)
 
 ## What you need
 
@@ -477,34 +479,143 @@ Firefox. If you do, run `brew install nss`, then `mkcert -install` again.
 **The profile doesn't appear on the phone after AirDrop** — it may have opened
 in *Files* instead. Use the Mail route in Part 7.1.
 
-## Renewing (in about two years)
+## Updating the certificate when it expires
 
-mkcert's certificates last **2 years and 3 months**. Apple refuses certificates
-from a private CA that are valid for longer than 825 days, and mkcert
-deliberately stays just under that.
+There are two expiry dates to know about:
 
-Your CA itself lasts **10 years**, so **renewing needs nothing on the phones**:
+| What | Lasts | When it runs out |
+| --- | --- | --- |
+| The Pi's certificate (`kettlebell.pem`) | **2 years 3 months** | Make a new one — about 10 minutes, **nothing to do on the phones**. |
+| Your CA (`rootCA.pem`) | **10 years** | Start again with a new CA, phones included — see [If the CA is lost or expired](#if-the-ca-is-lost-or-expired). |
 
-1. On the Mac, remake the certificate with the same command as Part 4 (it
-   overwrites the old files):
+mkcert's 2 years 3 months is deliberate: Apple refuses certificates from a
+private CA that are valid for longer than 825 days, and mkcert stays just under
+that. Apple's recent move to much shorter lifetimes (200 days from 2026, down to
+47 days by 2029) applies only to the public authorities built into iOS and
+macOS, not to a CA you added yourself, so two years still holds.
+
+You can renew at any time — you don't have to wait for it to expire. A few
+weeks before is ideal.
+
+### How to tell it has expired
+
+- The app or Safari shows **"This Connection Is Not Private"** (or just won't
+  load), on every device at once, even though nothing else has changed.
+- To be sure, ask the Pi which certificate it is serving, from Terminal on the
+  Mac:
+
+  ```bash
+  echo | openssl s_client -connect homeassistant.local:8234 -servername homeassistant.local 2>/dev/null | openssl x509 -noout -enddate
+  ```
+
+  It prints `notAfter=` and the expiry date. A date in the past means it's time
+  to renew.
+
+### Renew it — step by step
+
+You need **the Mac that holds your CA** (the one you used in Part 2), or a
+restored backup of its CA folder — see
+[Moving to a new Mac](#moving-to-a-new-mac) if not.
+
+1. **Check the CA is still there and still valid.** In Terminal:
 
    ```bash
+   openssl x509 -in "$(mkcert -CAROOT)/rootCA.pem" -noout -enddate
+   ```
+
+   A future date means you're fine. `No such file` or
+   `command not found: mkcert` means the CA or the tools are missing — see
+   [Moving to a new Mac](#moving-to-a-new-mac).
+
+2. **Check the Pi's IP address hasn't changed** — run the `ping` from
+   [Part 3](#part-3--find-the-pis-addresses) and note the address.
+
+3. **Make the new certificate.** Same command as Part 4, with the current IP. It
+   overwrites the old files, and it doesn't matter if the folder is missing or
+   empty — mkcert only needs the CA:
+
+   ```bash
+   mkdir -p ~/kettlebell-cert
    cd ~/kettlebell-cert
    mkcert -cert-file kettlebell.pem -key-file kettlebell-key.pem homeassistant.local 192.168.2.10
    ```
 
-2. Copy both files to the `ssl` share again (Part 5), replacing the old ones.
-3. Restart the app in Home Assistant (Part 6.2, step 4).
-4. Put the new expiry date in your calendar.
+   Check the new date is about two years ahead:
 
-This needs the **same Mac**, or a restored backup of the CA folder (Part 2).
-On a different Mac with a fresh CA you would have to repeat Part 7 on every
-device.
+   ```bash
+   openssl x509 -in ~/kettlebell-cert/kettlebell.pem -noout -enddate
+   ```
 
-Apple's recent move to much shorter certificate lifetimes (200 days from 2026,
-down to 47 days by 2029) applies only to certificates from the public
-authorities built into iOS and macOS, not to a CA you added yourself. Two years
-still holds.
+4. **Copy both files to the Pi**, replacing the old ones. If you stopped Samba
+   share after Part 5, start it again first (Home Assistant → *Settings → Apps
+   → Samba share → Start*). Then connect in Finder as in
+   [Part 5.2](#52-connect-from-finder) and either drag the two files into the
+   `ssl` window, choosing **Replace** when asked, or run:
+
+   ```bash
+   cp ~/kettlebell-cert/kettlebell.pem ~/kettlebell-cert/kettlebell-key.pem /Volumes/ssl/
+   ```
+
+   Keep the same two file names, so the app's `certfile` and `keyfile` options
+   don't need changing.
+
+5. **Restart the app** — Home Assistant → *Settings → Apps → Kettlebell Trainer
+   → Info → **Restart***. The app only reads the certificate when it starts, so
+   until you restart it keeps serving the old one.
+
+6. **Confirm the Pi is serving the new certificate** — run the `openssl
+   s_client` command from [How to tell it has expired](#how-to-tell-it-has-expired)
+   again. It should now print the new date from step 3.
+
+7. **Open the app on your phone.** It should load normally. There is nothing to
+   install, trust or re-add on the phones: they trust your CA, not the
+   individual certificate, and the Home Screen icon still points at the same
+   `https://` address.
+
+8. **Put the new expiry date in your calendar**, with a reminder a few weeks
+   before.
+
+### Moving to a new Mac
+
+Renewing only needs mkcert and the CA folder, not the original Mac. On the new
+Mac:
+
+1. Do [Part 1](#part-1--install-the-tools-on-the-mac) (Homebrew and mkcert).
+2. Find where mkcert expects the CA — `mkcert -CAROOT` — and create that folder:
+
+   ```bash
+   mkdir -p "$(mkcert -CAROOT)"
+   ```
+
+3. Copy `rootCA.pem` and `rootCA-key.pem` from your private backup into it, then
+   open the folder to check both are there:
+
+   ```bash
+   open "$(mkcert -CAROOT)"
+   ```
+
+4. Optionally run `mkcert -install` so this Mac's Safari trusts the app too. It
+   uses the CA you just restored rather than making a new one.
+5. Carry on from step 1 of [Renew it](#renew-it--step-by-step).
+
+### If the CA is lost or expired
+
+Without `rootCA-key.pem` — or ten years on, when the CA itself expires — you
+can't make certificates the phones already trust. Start again with a new CA:
+
+1. On each iPhone and iPad, remove the old one: *Settings → General → VPN &
+   Device Management → mkcert development CA → **Remove Profile***.
+2. On the Mac, if the old CA folder still exists, move it out of the way first
+   so mkcert creates a fresh one. Then do
+   [Part 2](#part-2--create-your-certificate-authority).
+3. Do [Part 4](#part-4--make-the-pis-certificate) and
+   [Part 5](#part-5--copy-the-certificate-to-home-assistant) (replace the old
+   files), and restart the app.
+4. Do [Part 7](#part-7--trust-your-ca-on-each-iphone-and-ipad) on every
+   device — install **and** turn on full trust.
+5. Back up the new CA folder privately (see Part 2).
+
+The Home Screen icon does not need re-adding: the address hasn't changed.
 
 ## Undoing it all
 
