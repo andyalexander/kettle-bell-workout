@@ -12,6 +12,9 @@ interface RoutineListProps {
   readonly problem: string | null;
   readonly onChoose: (routine: RoutineSummary) => void;
   readonly onBack: () => void;
+  /** PROTOTYPE (#48): the ways into the routine editor. */
+  readonly onEdit: (routine: RoutineSummary) => void;
+  readonly onNew: () => void;
 }
 
 /**
@@ -25,6 +28,8 @@ export function RoutineList({
   problem,
   onChoose,
   onBack,
+  onEdit,
+  onNew,
 }: RoutineListProps) {
   return (
     <Page title={profile.name} onBack={onBack}>
@@ -57,18 +62,34 @@ export function RoutineList({
                   {routine.exercise_names.join(" · ")}
                 </p>
               </div>
-              <CircleButton
-                className="self-end sm:self-auto"
-                aria-label={`Start ${routine.name}`}
-                disabled={startingRoutineId !== null}
-                onClick={() => onChoose(routine)}
-              >
-                {startingRoutineId === routine.id ? "…" : "Start"}
-              </CircleButton>
+              <div className="flex gap-[3vmin] self-end sm:self-auto">
+                <CircleButton
+                  variant="outline"
+                  aria-label={`Edit ${routine.name}`}
+                  disabled={startingRoutineId !== null}
+                  onClick={() => onEdit(routine)}
+                >
+                  Edit
+                </CircleButton>
+                <CircleButton
+                  aria-label={`Start ${routine.name}`}
+                  disabled={startingRoutineId !== null}
+                  onClick={() => onChoose(routine)}
+                >
+                  {startingRoutineId === routine.id ? "…" : "Start"}
+                </CircleButton>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      <button
+        type="button"
+        onClick={onNew}
+        className="w-full max-w-[1100px] rounded-[4vmin] border-[3px] border-dashed border-white/30 p-[5vmin] text-[clamp(28px,7vmin,84px)] leading-none font-extrabold active:scale-[0.98]"
+      >
+        ＋ New routine
+      </button>
     </Page>
   );
 }

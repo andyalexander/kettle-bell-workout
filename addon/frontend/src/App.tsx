@@ -4,6 +4,7 @@ import type { Profile, RoutineSummary, Workout } from "./api";
 import { describeFailure, listProfiles, listRoutines, startWorkout } from "./api";
 import type { FinishQueue } from "./finishQueue";
 import { ProfilePicker } from "./profiles/ProfilePicker";
+import { RoutineEditorPrototype } from "./routines/prototype/RoutineEditorPrototype";
 import { RoutineList } from "./routines/RoutineList";
 import { CircleButton } from "./ui/CircleButton";
 import { Page } from "./ui/Page";
@@ -19,6 +20,8 @@ interface AppProps {
 type Screen =
   | { readonly name: "picker" }
   | { readonly name: "routines"; readonly profileId: number }
+  // PROTOTYPE (#48): null routine is ＋ New routine.
+  | { readonly name: "editor"; readonly profileId: number; readonly routineId: number | null }
   | { readonly name: "workout"; readonly profile: Profile; readonly workout: Workout };
 
 interface Library {
@@ -105,7 +108,7 @@ export function App({ queue, flushed }: AppProps) {
   if (!library) return <Page title="Kettlebell" />;
 
   const profile =
-    screen.name === "routines"
+    screen.name === "routines" || screen.name === "editor"
       ? library.profiles.find(({ id }) => id === screen.profileId)
       : undefined;
 
@@ -119,6 +122,18 @@ export function App({ queue, flushed }: AppProps) {
     );
   }
 
+  if (screen.name === "editor") {
+    return (
+      <RoutineEditorPrototype
+        profile={profile}
+        profiles={library.profiles}
+        routines={library.routines}
+        routine={library.routines.find(({ id }) => id === screen.routineId) ?? null}
+        onClose={() => setScreen({ name: "routines", profileId: profile.id })}
+      />
+    );
+  }
+
   return (
     <RoutineList
       profile={profile}
@@ -127,6 +142,10 @@ export function App({ queue, flushed }: AppProps) {
       problem={problem}
       onChoose={(routine) => void handleStart(profile, routine)}
       onBack={handleBack}
+      onEdit={(routine) =>
+        setScreen({ name: "editor", profileId: profile.id, routineId: routine.id })
+      }
+      onNew={() => setScreen({ name: "editor", profileId: profile.id, routineId: null })}
     />
   );
 }
