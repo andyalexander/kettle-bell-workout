@@ -1,7 +1,7 @@
 name: Kettlebell Trainer
 # The app's one version. Supervisor builds the image with it, and the image hands
 # it to the app as KB_VERSION — so a release bumps this line and nothing else.
-version: "0.4.4"
+version: "0.5.0"
 slug: kettlebell
 description: >-
   EMOM and interval kettlebell workouts, with results published to

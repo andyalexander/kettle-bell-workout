@@ -23,7 +23,7 @@ export function formatClock(seconds: number): string {
   return minutes > 0 ? `${minutes}:${pad(whole % 60)}` : String(whole);
 }
 
-/** A span of time on the summary or the away prompt: always `m:ss`. */
+/** A span of time on the summary: always `m:ss`. */
 export function formatDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
   return `${Math.floor(whole / 60)}:${pad(whole % 60)}`;
@@ -113,8 +113,8 @@ const QUIET: Cue = { flash: null, beep: null };
  * - short beeps at 3-2-1 before a turn change.
  *
  * The timer publishes every whole second, so consecutive readings step the
- * display by exactly one. Anything else is the first frame after a hidden
- * stretch, and catching up is silent: no missed flash fires late.
+ * display by exactly one. Since every hide is a pause (#34), a workout no
+ * longer jumps; if a reading ever does, it stays quiet rather than fire late.
  */
 export function cueBetween(prev: TimerState, next: TimerState, restSeconds: number): Cue {
   if (!stepsByOneSecond(prev, next)) return QUIET;

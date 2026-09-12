@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- **Locking the phone pauses the workout.** It used to run on with the screen
+  off, so a turn could change without you seeing it. Now the workout freezes at
+  the second the screen locks or you leave the app, and waits on the Paused
+  screen for you.
+- **Every resume counts you back in**: tap Resume and a silent 3-2-1 gives you
+  time to get back to the bell, then the workout carries on from exactly where
+  it stopped. The "Away for" screen is gone.
+
 ## 0.4.4
 
 - More room at the top: the title on the picker, routine list and New profile
