@@ -1,20 +1,22 @@
 // PROTOTYPE (#48), throwaway. The routine editor's draft, held in memory: nothing
 // here reaches the server. Delete once a variant has won.
+//
+// No default weights (#47, amended): an exercise is a name, a slot is an
+// exercise at a position, and the only weight is a person's own, per slot.
 import type { Profile, RoutineSummary, Workout } from "../../api";
 
 export interface LibraryExercise {
   readonly id: number;
   readonly name: string;
-  readonly defaultWeight: number;
 }
 
-/** The seed library (`seed.py`); ＋ New exercise adds to a copy in memory. */
+/** The seed library (`seed.py`) by name; ＋ New exercise adds to a copy in memory. */
 export const STUB_LIBRARY: readonly LibraryExercise[] = [
-  { id: 1, name: "Thruster", defaultWeight: 10 },
-  { id: 2, name: "Single-arm row", defaultWeight: 12 },
-  { id: 3, name: "Farmer's carry", defaultWeight: 16 },
-  { id: 4, name: "Halo", defaultWeight: 8 },
-  { id: 5, name: "Two-hand swing", defaultWeight: 16 },
+  { id: 1, name: "Thruster" },
+  { id: 2, name: "Single-arm row" },
+  { id: 3, name: "Farmer's carry" },
+  { id: 4, name: "Halo" },
+  { id: 5, name: "Two-hand swing" },
 ];
 
 export interface DraftSlot {
@@ -23,10 +25,8 @@ export interface DraftSlot {
   /** Where this slot sat in the saved routine; null for a slot added here. */
   readonly origin: number | null;
   readonly exercise: LibraryExercise;
-  /** The routine's weight: the exercise's default when the slot was added or swapped. */
-  readonly baseline: number;
-  /** The viewer's own weight, only when it differs from the baseline. */
-  readonly mine: number | null;
+  /** The viewer's own weight; null trains without one. */
+  readonly weight: number | null;
   readonly swapped: boolean;
 }
 
@@ -59,6 +59,9 @@ const newKey = () => ++lastKey;
 
 export const kg = (weight: number) => `${weight} kg`;
 
+/** A weight for display: `12 kg`, or a dash when there is none. */
+export const shownWeight = (weight: number | null) => (weight === null ? "—" : kg(weight));
+
 export const newDraft = (): Draft => ({
   id: null,
   name: "",
@@ -68,7 +71,7 @@ export const newDraft = (): Draft => ({
   slots: [],
 });
 
-/** The real routine and weights, with a stub override of the viewer's at slot 4. */
+/** The real routine, its weights taken as the viewer's, with Halo (slot 4) left empty. */
 export function draftFromWorkout(
   workout: Workout,
   library: readonly LibraryExercise[],
@@ -85,10 +88,8 @@ export function draftFromWorkout(
       exercise: library.find(({ name }) => name === activity.exercise_name) ?? {
         id: 100 + activity.exercise_id,
         name: activity.exercise_name,
-        defaultWeight: activity.weight,
       },
-      baseline: activity.weight,
-      mine: position === 3 ? nextBell(activity.weight) : null,
+      weight: position === 3 ? null : activity.weight,
       swapped: false,
     })),
   };
@@ -103,7 +104,7 @@ export function stubOthers(
   const who = profiles.find(({ id }) => id !== viewer.id)?.name ?? "Jo";
   return slots
     .slice(0, 2)
-    .map((slot, position) => ({ who, position, weight: nextBell(slot.baseline) }));
+    .map((slot, position) => ({ who, position, weight: nextBell(slot.weight ?? 8) }));
 }
 
 const mapSlot = (draft: Draft, index: number, change: (slot: DraftSlot) => DraftSlot) => ({
@@ -125,37 +126,21 @@ export const removeSlot = (draft: Draft, index: number): Draft => ({
   slots: draft.slots.filter((_, i) => i !== index),
 });
 
+/** A new slot has no weight for anyone. */
 export const addSlot = (draft: Draft, exercise: LibraryExercise): Draft => ({
   ...draft,
   slots: [
     ...draft.slots,
-    {
-      key: newKey(),
-      origin: null,
-      exercise,
-      baseline: exercise.defaultWeight,
-      mine: null,
-      swapped: false,
-    },
+    { key: newKey(), origin: null, exercise, weight: null, swapped: false },
   ],
 });
 
-/** Swapping resets the slot: the new default, and nobody's override. */
+/** Swapping clears every weight at the slot, yours included. */
 export const swapExercise = (draft: Draft, index: number, exercise: LibraryExercise) =>
-  mapSlot(draft, index, (slot) => ({
-    ...slot,
-    exercise,
-    baseline: exercise.defaultWeight,
-    mine: null,
-    swapped: true,
-  }));
+  mapSlot(draft, index, (slot) => ({ ...slot, exercise, weight: null, swapped: true }));
 
-/** Typing the baseline clears your override rather than storing a copy. */
-export const setMine = (draft: Draft, index: number, weight: number | null) =>
-  mapSlot(draft, index, (slot) => ({
-    ...slot,
-    mine: weight === null || weight === slot.baseline ? null : weight,
-  }));
+export const setWeight = (draft: Draft, index: number, weight: number | null) =>
+  mapSlot(draft, index, (slot) => ({ ...slot, weight }));
 
 export function problemFor(
   draft: Draft,
@@ -175,7 +160,7 @@ export function problemFor(
 }
 
 /**
- * Whose weights a save would move or lose. Overrides are held at the slot's
+ * Whose weights a save would move or lose. Weights are held at the slot's
  * position, so what matters is which exercise sits at that position afterwards.
  */
 export function warningsFor(

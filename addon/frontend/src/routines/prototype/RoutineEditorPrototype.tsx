@@ -121,8 +121,8 @@ export function RoutineEditorPrototype({
     setOverlay(null);
   };
 
-  const handleNewExercise = (target: PickTarget, name: string, defaultWeight: number) => {
-    const exercise = { id: Math.max(...library.map(({ id }) => id)) + 1, name, defaultWeight };
+  const handleNewExercise = (target: PickTarget, name: string) => {
+    const exercise = { id: Math.max(...library.map(({ id }) => id)) + 1, name };
     setLibrary([...library, exercise]);
     handlePick(target, exercise);
   };
@@ -163,7 +163,7 @@ export function RoutineEditorPrototype({
       {overlay?.kind === "newExercise" && (
         <NewExercise
           library={library}
-          onAdd={(name, weight) => handleNewExercise(overlay.target, name, weight)}
+          onAdd={(name) => handleNewExercise(overlay.target, name)}
           onCancel={() => setOverlay({ kind: "picker", target: overlay.target })}
         />
       )}
@@ -209,9 +209,6 @@ function ExercisePicker({ library, onPick, onNew, onCancel }: ExercisePickerProp
           <li key={exercise.id}>
             <button type="button" className={ROW} onClick={() => onPick(exercise)}>
               <span className={ROW_NAME}>{exercise.name}</span>
-              <span className="text-[clamp(22px,5vmin,56px)] font-bold whitespace-nowrap tabular-nums opacity-70">
-                {kg(exercise.defaultWeight)}
-              </span>
             </button>
           </li>
         ))}
@@ -231,23 +228,20 @@ function ExercisePicker({ library, onPick, onNew, onCancel }: ExercisePickerProp
 
 interface NewExerciseProps {
   readonly library: readonly LibraryExercise[];
-  readonly onAdd: (name: string, defaultWeight: number) => void;
+  readonly onAdd: (name: string) => void;
   readonly onCancel: () => void;
 }
 
+/** A name and nothing else: exercises carry no weight (#47, amended). */
 function NewExercise({ library, onAdd, onCancel }: NewExerciseProps) {
   const [name, setName] = useState("");
-  const [weight, setWeight] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleAdd = () => {
     const trimmed = name.trim();
-    const kilos = Number(weight.replace(",", "."));
     if (library.some((each) => each.name.toLowerCase() === trimmed.toLowerCase())) {
       setError(`There's already a ${trimmed}.`);
-    } else if (weight.trim() === "" || !Number.isFinite(kilos) || kilos < 0) {
-      setError("Give it a default weight.");
-    } else onAdd(trimmed, kilos);
+    } else onAdd(trimmed);
   };
 
   return (
@@ -262,14 +256,6 @@ function NewExercise({ library, onAdd, onCancel }: NewExerciseProps) {
           autoComplete="off"
           autoCapitalize="words"
           className={INPUT}
-        />
-        <input
-          value={weight}
-          onChange={(event) => setWeight(event.target.value)}
-          placeholder="Default weight (kg)"
-          aria-label="Default weight in kilograms"
-          inputMode="decimal"
-          className={`${INPUT} tabular-nums`}
         />
         <p role="alert" className="min-h-[1.2em] text-[clamp(18px,4vmin,42px)] font-semibold text-red-300">
           {error}
@@ -340,8 +326,7 @@ function WouldSave({ draft, action, onKeepEditing, onClose }: WouldSaveProps) {
           <ol className="mt-[3vmin] flex flex-col gap-[2vmin]">
             {draft.slots.map((slot, index) => (
               <li key={slot.key}>
-                {index + 1}. {slot.exercise.name} · routine {kg(slot.baseline)}
-                {slot.mine !== null && <span className="text-amber-300"> · yours {kg(slot.mine)}</span>}
+                {index + 1}. {slot.exercise.name} · {slot.weight === null ? "no weight" : kg(slot.weight)}
               </li>
             ))}
           </ol>

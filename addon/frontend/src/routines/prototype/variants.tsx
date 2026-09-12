@@ -3,13 +3,14 @@
 //   B · Tap a slot — a read-only list; each slot opens its own screen of circles.
 //   C · Modes      — Weights / Order / Exercises / Routine, one job at a time,
 //                    with Save pinned to the corner.
+// Every weight shown is the viewer's own; an empty box trains without one.
 import type { ButtonHTMLAttributes } from "react";
 import { useEffect, useState } from "react";
 
 import { CircleButton } from "../../ui/CircleButton";
 import { Page } from "../../ui/Page";
 import type { Draft, DraftSlot, PickTarget } from "./model";
-import { kg, moveSlot, removeSlot, setMine } from "./model";
+import { moveSlot, removeSlot, setWeight, shownWeight } from "./model";
 
 export interface EditorProps {
   readonly title: string;
@@ -100,19 +101,25 @@ interface WeightFieldProps {
   readonly big?: boolean;
 }
 
-/** Re-keyed on the committed weight, so "use routine's weight" resets the box. */
+/** Re-keyed on the committed weight, so a swap that clears it empties the box. */
 function WeightField(props: WeightFieldProps) {
-  return <WeightInput key={props.slot.mine ?? props.slot.baseline} {...props} />;
+  return <WeightInput key={props.slot.weight ?? "none"} {...props} />;
 }
 
-function WeightInput({ slot, onCommit, big = false }: WeightFieldProps) {
-  const shown = slot.mine ?? slot.baseline;
-  const [text, setText] = useState(String(shown));
+const asText = (weight: number | null) => (weight === null ? "" : String(weight));
 
+function WeightInput({ slot, onCommit, big = false }: WeightFieldProps) {
+  const [text, setText] = useState(asText(slot.weight));
+
+  // Emptied is a choice: no weight, and the workout trains without one.
   const commit = () => {
+    if (text.trim() === "") {
+      onCommit(null);
+      return;
+    }
     const weight = Number(text.replace(",", "."));
-    if (text.trim() === "" || !Number.isFinite(weight) || weight < 0) setText(String(shown));
-    else onCommit(weight);
+    if (Number.isFinite(weight) && weight >= 0) onCommit(weight);
+    else setText(asText(slot.weight));
   };
 
   const size = big
@@ -127,32 +134,21 @@ function WeightInput({ slot, onCommit, big = false }: WeightFieldProps) {
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}
+        placeholder="—"
         inputMode="decimal"
         enterKeyHint="done"
         aria-label={`Your weight for ${slot.exercise.name}`}
-        className={`${size} rounded-[3vmin] bg-white/10 px-[2vmin] py-[1vmin] text-center leading-none font-extrabold tabular-nums ring-[3px] ring-white/30 outline-none ring-inset focus:ring-white ${slot.mine === null ? "" : "text-amber-300"}`}
+        className={`${size} rounded-[3vmin] bg-white/10 px-[2vmin] py-[1vmin] text-center leading-none font-extrabold tabular-nums ring-[3px] ring-white/30 outline-none ring-inset placeholder:text-white/35 focus:ring-white`}
       />
       <span className="text-[clamp(24px,6vmin,64px)] font-extrabold opacity-70">kg</span>
     </label>
   );
 }
 
-function YourWeightNote({ slot, onClear }: { readonly slot: DraftSlot; readonly onClear: () => void }) {
-  if (slot.mine === null) return <p className={LABEL}>Routine's weight</p>;
-  return (
-    <div className="flex flex-wrap items-center gap-[3vmin]">
-      <p className={`${LABEL} text-amber-300 opacity-100`}>
-        Yours · routine's is {kg(slot.baseline)}
-      </p>
-      <button
-        type="button"
-        onClick={onClear}
-        className="min-h-[56px] rounded-full bg-white/15 px-[4vmin] py-[2vmin] text-[clamp(15px,3.4vmin,32px)] font-extrabold tracking-[0.06em] uppercase active:scale-95"
-      >
-        Use routine's weight
-      </button>
-    </div>
-  );
+/** Only an empty weight needs saying: it trains without one. */
+function WeightNote({ slot }: { readonly slot: DraftSlot }) {
+  if (slot.weight !== null) return null;
+  return <p className={LABEL}>No weight · trains without one</p>;
 }
 
 interface SquareButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -199,7 +195,7 @@ function SaveRow({ isNew, onSave, onDelete }: Pick<EditorProps, "isNew" | "onSav
 const slotHandlers = (update: EditorProps["update"], index: number) => ({
   move: (by: -1 | 1) => update((draft) => moveSlot(draft, index, by)),
   remove: () => update((draft) => removeSlot(draft, index)),
-  setWeight: (weight: number | null) => update((draft) => setMine(draft, index, weight)),
+  setWeight: (weight: number | null) => update((draft) => setWeight(draft, index, weight)),
 });
 
 // --- A · One page -----------------------------------------------------------
@@ -228,7 +224,7 @@ export function VariantA(props: EditorProps) {
                 <span className="text-[clamp(22px,5vmin,48px)] opacity-50">⇄</span>
               </button>
               <WeightField slot={slot} onCommit={handle.setWeight} />
-              <YourWeightNote slot={slot} onClear={() => handle.setWeight(null)} />
+              <WeightNote slot={slot} />
               <div className="flex gap-[3vmin]">
                 <SquareButton label="Move up" disabled={index === 0} onClick={() => handle.move(-1)}>
                   ▲
@@ -292,7 +288,7 @@ export function VariantB(props: EditorProps) {
           <span className={LABEL}>Tap to swap exercise</span>
         </button>
         <WeightField slot={slot} big onCommit={handle.setWeight} />
-        <YourWeightNote slot={slot} onClear={() => handle.setWeight(null)} />
+        <WeightNote slot={slot} />
         <div className="flex flex-wrap justify-center gap-[3vmin]">
           <CircleButton variant="outline" className="disabled:opacity-25" disabled={index === 0} onClick={() => handle.move(-1)}>
             Move up
@@ -346,9 +342,9 @@ export function VariantB(props: EditorProps) {
               <span className={`${NAME} opacity-40 tabular-nums`}>{position + 1}</span>
               <span className={`${NAME} min-w-0 flex-1`}>{each.exercise.name}</span>
               <span
-                className={`text-[clamp(24px,6vmin,64px)] font-extrabold whitespace-nowrap tabular-nums ${each.mine === null ? "" : "text-amber-300"}`}
+                className={`text-[clamp(24px,6vmin,64px)] font-extrabold whitespace-nowrap tabular-nums ${each.weight === null ? "opacity-40" : ""}`}
               >
-                {kg(each.mine ?? each.baseline)}
+                {shownWeight(each.weight)}
               </span>
               <span className={`${NAME} opacity-40`}>›</span>
             </button>
@@ -409,7 +405,7 @@ export function VariantC(props: EditorProps) {
                     {name}
                     <WeightField slot={slot} onCommit={handle.setWeight} />
                     <div className="basis-full">
-                      <YourWeightNote slot={slot} onClear={() => handle.setWeight(null)} />
+                      <WeightNote slot={slot} />
                     </div>
                   </>
                 )}
@@ -420,7 +416,7 @@ export function VariantC(props: EditorProps) {
                     </SquareButton>
                     <span className="min-w-0 flex-1 text-center">
                       <span className={`${NAME} block`}>{slot.exercise.name}</span>
-                      <span className={`${LABEL} mt-[1vmin] block`}>{kg(slot.mine ?? slot.baseline)}</span>
+                      <span className={`${LABEL} mt-[1vmin] block`}>{shownWeight(slot.weight)}</span>
                     </span>
                     <SquareButton label="Move down" disabled={index === last} onClick={() => handle.move(1)}>
                       ▼
