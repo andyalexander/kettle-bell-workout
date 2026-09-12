@@ -79,7 +79,9 @@ export function WorkoutScreen({ profile, workout, queue, onExit }: WorkoutScreen
         padding:
           "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
       }}
-      onPointerDown={unlockAudio}
+      // A click, not pointerdown, which isn't a gesture for touch. Every tap
+      // bubbles here, Resume's included, so a hide's stale audio is replaced.
+      onClick={unlockAudio}
     >
       {confirmingAbort ? (
         <Overlay
