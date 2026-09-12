@@ -17,13 +17,14 @@ interface PageProps {
 export function Page({ title, onBack, children }: PageProps) {
   return (
     <main
-      className="min-h-dvh bg-ground text-white"
+      className="flex min-h-dvh flex-col bg-ground text-white"
       style={{
         padding:
           "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
       }}
     >
-      <div className="flex flex-col items-center gap-[7vmin] px-[5vmin] pt-[16vmin] pb-[8vmin]">
+      {/* Fills the screen, so a child with `mt-auto` sits at the very bottom. */}
+      <div className="flex flex-1 flex-col items-center gap-[7vmin] px-[5vmin] pt-[16vmin] pb-[8vmin]">
         <header className="flex w-full max-w-[1100px] items-center justify-center gap-[4vmin]">
           {onBack && (
             <CircleButton variant="outline" onClick={onBack}>

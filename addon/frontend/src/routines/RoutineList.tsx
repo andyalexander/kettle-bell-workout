@@ -17,6 +17,10 @@ interface RoutineListProps {
   readonly onNew: () => void;
 }
 
+/** A rare action: a small, quiet pill, never competing with Start (#48). */
+const QUIET =
+  "min-h-[48px] rounded-full px-[5vmin] py-[2vmin] text-[clamp(14px,3vmin,24px)] font-bold tracking-[0.06em] uppercase opacity-60 ring-2 ring-white/30 ring-inset active:scale-95 disabled:opacity-25";
+
 /**
  * Every routine, the same for everyone (#19). No history and no personal
  * weights here: a profile's load first appears at prep.
@@ -46,12 +50,13 @@ export function RoutineList({
       ) : (
         <ul className="flex w-full max-w-[1100px] flex-col gap-[4vmin]">
           {routines.map((routine) => (
+            // Phone: details full width, then Edit and Start sharing a row at
+            // opposite ends. Wider: details and Edit left, Start centred right.
             <li
               key={routine.id}
-              className="flex flex-col gap-[4vmin] rounded-[4vmin] bg-white/[0.07] p-[4vmin] sm:flex-row sm:items-center"
+              className="grid grid-cols-[1fr_auto] gap-x-[4vmin] gap-y-[3vmin] rounded-[4vmin] bg-white/[0.07] p-[4vmin]"
             >
-              {/* Stacked on a phone, so the line never wraps mid-way beside Start. */}
-              <div className="min-w-0 flex-1">
+              <div className="col-span-2 min-w-0 sm:col-span-1">
                 <h2 className="text-[clamp(28px,7vmin,84px)] leading-none font-extrabold tracking-[-0.02em] break-words">
                   {routine.name}
                 </h2>
@@ -62,32 +67,29 @@ export function RoutineList({
                   {routine.exercise_names.join(" · ")}
                 </p>
               </div>
-              <div className="flex gap-[3vmin] self-end sm:self-auto">
-                <CircleButton
-                  variant="outline"
-                  aria-label={`Edit ${routine.name}`}
-                  disabled={startingRoutineId !== null}
-                  onClick={() => onEdit(routine)}
-                >
-                  Edit
-                </CircleButton>
-                <CircleButton
-                  aria-label={`Start ${routine.name}`}
-                  disabled={startingRoutineId !== null}
-                  onClick={() => onChoose(routine)}
-                >
-                  {startingRoutineId === routine.id ? "…" : "Start"}
-                </CircleButton>
-              </div>
+              <button
+                type="button"
+                className={`${QUIET} col-start-1 self-center justify-self-start sm:self-start`}
+                aria-label={`Edit ${routine.name}`}
+                disabled={startingRoutineId !== null}
+                onClick={() => onEdit(routine)}
+              >
+                Edit
+              </button>
+              <CircleButton
+                className="col-start-2 row-start-2 self-center sm:row-span-2 sm:row-start-1"
+                aria-label={`Start ${routine.name}`}
+                disabled={startingRoutineId !== null}
+                onClick={() => onChoose(routine)}
+              >
+                {startingRoutineId === routine.id ? "…" : "Start"}
+              </CircleButton>
             </li>
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        onClick={onNew}
-        className="w-full max-w-[1100px] rounded-[4vmin] border-[3px] border-dashed border-white/30 p-[5vmin] text-[clamp(28px,7vmin,84px)] leading-none font-extrabold active:scale-[0.98]"
-      >
+      {/* Rare, so small and at the very bottom, out of reach of a stray tap. */}
+      <button type="button" onClick={onNew} className={`${QUIET} mt-auto`}>
         ＋ New routine
       </button>
     </Page>
