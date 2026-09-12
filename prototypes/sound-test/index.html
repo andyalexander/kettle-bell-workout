@@ -1,0 +1,353 @@
+<!doctype html>
+<!--
+  PROTOTYPE — sound test (issue #33). Throwaway; lives on branch prototype/sound-test.
+  Question: which way of making a sound is audible on the iPhone, at the moment a
+  workout needs it — seconds after the tap that unlocked audio, not inside it?
+  Every action is logged with the AudioContext's state, on screen and to serve.py.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Sound test" />
+    <title>PROTOTYPE — sound test</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 24px);
+        background: #101014;
+        color: #fff;
+        font: 600 17px/1.3 -apple-system, system-ui, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .banner { background: #ff2bd6; color: #000; padding: 6px 10px; border-radius: 8px; font-weight: 800; }
+      h2 { margin: 22px 0 8px; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      button {
+        min-height: 72px; border: 0; border-radius: 16px; padding: 8px;
+        background: #2c2c36; color: #fff; font: inherit; font-size: 16px;
+      }
+      button:active { transform: scale(0.96); background: #444452; }
+      button b { display: block; font-size: 22px; }
+      button.on { background: #1f7a3a; }
+      button:disabled { opacity: 0.3; }
+      #state { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin-top: 12px; font-size: 15px; }
+      #state dt { opacity: 0.6; }
+      #state dd { margin: 0; font-variant-numeric: tabular-nums; }
+      #verdict { position: sticky; top: env(safe-area-inset-top); z-index: 1; margin-top: 12px;
+        padding: 10px; border-radius: 16px; background: #1a1a22; box-shadow: 0 4px 16px #0008; }
+      #verdict .grid button { min-height: 64px; font-size: 20px; }
+      #heard { background: #1f7a3a; }
+      #silent { background: #8a2230; }
+      #count { font-size: 64px; text-align: center; font-weight: 800; min-height: 1em; }
+      #log { font: 12px/1.35 ui-monospace, Menlo, monospace; padding-left: 18px; opacity: 0.85;
+        -webkit-user-select: text; user-select: text; }
+    </style>
+  </head>
+  <body>
+    <div class="banner">PROTOTYPE · issue #33 · throwaway</div>
+
+    <dl id="state"></dl>
+
+    <div id="verdict">
+      <div>Last sound: <span id="last">—</span></div>
+      <div class="grid" style="margin-top: 8px">
+        <button id="heard">Heard it</button>
+        <button id="silent">Silence</button>
+      </div>
+    </div>
+
+    <h2>1 · Unlock</h2>
+    <div class="grid">
+      <button id="U1"><b>U1</b>resume() on click — the app's Start</button>
+      <button id="U2"><b>U2</b>resume() + silent buffer on click</button>
+      <button id="U3"><b>U3</b>resume() on pointerdown — the workout screen</button>
+      <button id="U4"><b>U4</b>Throw away the context, make a new one</button>
+    </div>
+
+    <h2>2 · Beep</h2>
+    <div class="grid">
+      <button id="B1"><b>B1</b>App beep, now</button>
+      <button id="B2"><b>B2</b>App beep, in 3 s</button>
+      <button id="B3"><b>B3</b>Loud 1 s tone, now, ignoring state</button>
+      <button id="B4"><b>B4</b>Loud 1 s tone, in 3 s, ignoring state</button>
+      <button id="B5"><b>B5</b>&lt;audio&gt; beep, now</button>
+      <button id="B6"><b>B6</b>&lt;audio&gt; beep, in 3 s</button>
+    </div>
+
+    <h2>3 · Audio session</h2>
+    <div class="grid" id="sessions"></div>
+
+    <h2>4 · Like the app</h2>
+    <div class="grid">
+      <button id="A1"><b>A1</b>Start, 10 s prep, 3-2-1 — exactly as the app</button>
+      <button id="A2"><b>A2</b>Same, with U2's silent-buffer unlock</button>
+      <button id="V"><b>V</b>Keep-awake video: off</button>
+      <button id="C"><b>C</b>Clear the log</button>
+    </div>
+    <div id="count"></div>
+
+    <h2>Log (newest first)</h2>
+    <ol id="log" reversed></ol>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const t0 = performance.now();
+      const since = () => ((performance.now() - t0) / 1000).toFixed(1).padStart(6);
+      let ctx = null;
+      let lastLabel = null;
+
+      // --- state, surfaced ----------------------------------------------------
+
+      const sessionType = () => (navigator.audioSession ? navigator.audioSession.type : "n/a");
+      const standalone = () =>
+        matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+      function log(message) {
+        const line = `${since()}s  ${message}  [ctx=${ctx ? ctx.state : "none"} session=${sessionType()} ${document.visibilityState}]`;
+        const item = document.createElement("li");
+        item.textContent = line;
+        $("log").prepend(item);
+        fetch("/log", { method: "POST", body: line, keepalive: true }).catch(() => {});
+      }
+
+      let lastTime = null;
+      function renderState() {
+        const now = ctx ? ctx.currentTime : null;
+        const advancing = now === null || lastTime === null ? "—" : now > lastTime ? "yes" : "NO";
+        lastTime = now;
+        const activation = navigator.userActivation;
+        const rows = {
+          "context": ctx ? ctx.state : "not created",
+          "currentTime": now === null ? "—" : `${now.toFixed(2)} (advancing: ${advancing})`,
+          "sampleRate": ctx ? ctx.sampleRate : "—",
+          "audioSession": navigator.audioSession ? navigator.audioSession.type : "not available",
+          "Home Screen app": standalone() ? "yes" : "no (Safari tab)",
+          "userActivation": activation ? `active ${activation.isActive}, ever ${activation.hasBeenActive}` : "n/a",
+          "video": video ? (video.paused ? "paused" : "playing") : "off",
+        };
+        $("state").innerHTML = Object.entries(rows)
+          .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+          .join("");
+      }
+      setInterval(renderState, 250);
+
+      function setLast(label) {
+        lastLabel = label;
+        $("last").textContent = label;
+      }
+
+      $("heard").onclick = () => log(`VERDICT heard: ${lastLabel}`);
+      $("silent").onclick = () => log(`VERDICT silence: ${lastLabel}`);
+
+      document.addEventListener("visibilitychange", () => log(`visibility → ${document.visibilityState}`));
+      addEventListener("pagehide", () => log("pagehide"));
+      addEventListener("pageshow", (e) => log(`pageshow persisted=${e.persisted}`));
+
+      // --- the context ----------------------------------------------------------
+
+      function getCtx() {
+        if (!ctx) {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+          ctx.onstatechange = () => log(`statechange → ${ctx.state}`);
+          log("context created");
+        }
+        return ctx;
+      }
+
+      function resume(label) {
+        getCtx()
+          .resume()
+          .then(
+            () => log(`${label}: resume() resolved`),
+            (e) => log(`${label}: resume() rejected ${e && e.name}`),
+          );
+      }
+
+      function silentBuffer() {
+        const c = getCtx();
+        const source = c.createBufferSource();
+        source.buffer = c.createBuffer(1, 1, c.sampleRate);
+        source.connect(c.destination);
+        source.start(0);
+        log("silent buffer started");
+      }
+
+      $("U1").onclick = () => resume("U1");
+      $("U2").onclick = () => {
+        resume("U2");
+        silentBuffer();
+      };
+      $("U3").addEventListener("pointerdown", () => resume("U3"));
+      $("U4").onclick = () => {
+        const old = ctx;
+        ctx = null;
+        if (old) old.close().then(() => log("old context closed"));
+        getCtx();
+      };
+
+      // --- beeps ----------------------------------------------------------------
+
+      /** sound.ts's beep(), with the options the tests need. */
+      function webBeep(label, { checkState = true, seconds = 0.12, gain = 0.4, hz = 880 } = {}) {
+        setLast(label);
+        const c = getCtx();
+        if (checkState && c.state !== "running") {
+          log(`${label}: SKIPPED, state ${c.state} (the app does this)`);
+          return;
+        }
+        const oscillator = c.createOscillator();
+        const envelope = c.createGain();
+        const start = c.currentTime;
+        const end = start + seconds;
+        oscillator.frequency.value = hz;
+        envelope.gain.setValueAtTime(gain, start);
+        envelope.gain.exponentialRampToValueAtTime(0.001, end);
+        oscillator.connect(envelope).connect(c.destination);
+        oscillator.start(start);
+        oscillator.stop(end);
+        log(`${label}: scheduled at currentTime ${start.toFixed(2)}`);
+      }
+
+      const loud = { checkState: false, seconds: 1, gain: 1, hz: 660 };
+      const later = (fn) => () => {
+        log("…in 3 s");
+        setTimeout(fn, 3000);
+      };
+
+      $("B1").onclick = () => webBeep("B1 app beep now");
+      $("B2").onclick = later(() => webBeep("B2 app beep in 3 s"));
+      $("B3").onclick = () => {
+        getCtx().resume().catch(() => {});
+        webBeep("B3 loud now", loud);
+      };
+      $("B4").onclick = later(() => {
+        getCtx().resume().catch(() => {});
+        webBeep("B4 loud in 3 s", loud);
+      });
+
+      /** A 0.3 s 880 Hz WAV, built here so there is nothing to download. */
+      function makeWav(hz = 880, seconds = 0.3, rate = 44100) {
+        const n = Math.floor(seconds * rate);
+        const view = new DataView(new ArrayBuffer(44 + n * 2));
+        const text = (offset, s) => [...s].forEach((ch, i) => view.setUint8(offset + i, ch.charCodeAt(0)));
+        text(0, "RIFF");
+        view.setUint32(4, 36 + n * 2, true);
+        text(8, "WAVE");
+        text(12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, rate, true);
+        view.setUint32(28, rate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        text(36, "data");
+        view.setUint32(40, n * 2, true);
+        for (let i = 0; i < n; i++) {
+          const sample = Math.sin((2 * Math.PI * hz * i) / rate) * (1 - i / n) * 0.8;
+          view.setInt16(44 + i * 2, sample * 32767, true);
+        }
+        return new Blob([view.buffer], { type: "audio/wav" });
+      }
+
+      const element = new Audio(URL.createObjectURL(makeWav()));
+      element.preload = "auto";
+      function elementBeep(label) {
+        setLast(label);
+        element.currentTime = 0;
+        element.play().then(
+          () => log(`${label}: play() resolved`),
+          (e) => log(`${label}: play() REJECTED ${e && e.name}`),
+        );
+      }
+      $("B5").onclick = () => elementBeep("B5 <audio> now");
+      $("B6").onclick = later(() => elementBeep("B6 <audio> in 3 s"));
+
+      // --- audio session ----------------------------------------------------------
+
+      const SESSION_TYPES = ["auto", "ambient", "playback", "transient", "transient-solo"];
+      for (const type of SESSION_TYPES) {
+        const button = document.createElement("button");
+        button.innerHTML = `<b>S</b>${type}`;
+        button.disabled = !navigator.audioSession;
+        button.onclick = () => {
+          navigator.audioSession.type = type;
+          log(`audioSession.type = ${type} → reads ${navigator.audioSession.type}`);
+          renderSessions();
+        };
+        button.dataset.type = type;
+        $("sessions").append(button);
+      }
+      function renderSessions() {
+        for (const button of $("sessions").children) {
+          button.classList.toggle("on", navigator.audioSession && button.dataset.type === navigator.audioSession.type);
+        }
+      }
+      renderSessions();
+
+      // --- like the app -------------------------------------------------------------
+
+      /** handleStart: resume in the tap, a fetch's worth of wait, 10 s prep, 3-2-1, long. */
+      function runLikeTheApp(label, unlock) {
+        unlock();
+        let remaining = 10;
+        $("count").textContent = remaining;
+        setTimeout(() => {
+          const tick = setInterval(() => {
+            remaining -= 1;
+            $("count").textContent = remaining || "GO";
+            if (remaining > 0 && remaining <= 3) webBeep(`${label} short ${remaining}`);
+            if (remaining === 0) {
+              webBeep(`${label} long`, { seconds: 0.6 });
+              clearInterval(tick);
+            }
+          }, 1000);
+        }, 300);
+      }
+      $("A1").onclick = () => runLikeTheApp("A1", () => resume("A1"));
+      $("A2").onclick = () =>
+        runLikeTheApp("A2", () => {
+          resume("A2");
+          silentBuffer();
+        });
+
+      // wakeLock.ts's fallback, verbatim: a muted, looping, inline 1 s video.
+      let video = null;
+      $("V").onclick = () => {
+        if (video) {
+          video.pause();
+          video.remove();
+          video = null;
+        } else {
+          video = document.createElement("video");
+          video.src = "keep-awake.mp4";
+          video.muted = true;
+          video.loop = true;
+          video.playsInline = true;
+          video.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none";
+          document.body.appendChild(video);
+          video.play().then(
+            () => log("keep-awake video playing"),
+            (e) => log(`keep-awake video REJECTED ${e && e.name}`),
+          );
+        }
+        $("V").innerHTML = `<b>V</b>Keep-awake video: ${video ? "on" : "off"}`;
+        $("V").classList.toggle("on", !!video);
+      };
+
+      $("C").onclick = () => {
+        $("log").textContent = "";
+        log("--- log cleared ---");
+      };
+
+      log(`loaded · Home Screen app ${standalone()} · ${navigator.userAgent}`);
+      renderState();
+    </script>
+  </body>
+</html>
