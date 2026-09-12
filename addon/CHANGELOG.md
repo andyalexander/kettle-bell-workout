@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- **HTTPS works.** With `ssl` on, the app refused to start saying the
+  certificate was not found, even with it sitting in the `ssl` folder: the
+  folder was never actually made available to the app. It is now. If you had
+  turned `ssl` on and the app stopped, update and it starts.
+
 ## 0.5.0
 
 - **Locking the phone pauses the workout.** It used to run on with the screen

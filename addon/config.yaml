@@ -1,7 +1,7 @@
 name: Kettlebell Trainer
 # The app's one version. Supervisor builds the image with it, and the image hands
 # it to the app as KB_VERSION — so a release bumps this line and nothing else.
-version: "0.5.0"
+version: "0.5.1"
 slug: kettlebell
 description: >-
   EMOM and interval kettlebell workouts, with results published to
@@ -18,8 +18,11 @@ startup: services
 boot: auto
 
 # Mounts the shared /ssl folder read-only. This does NOT turn TLS on — that is
-# the `ssl` option below, which run.sh reads.
-ssl: true
+# the `ssl` option below, which run.sh reads. It must be a `map` entry: a
+# top-level `ssl: true` is not in Supervisor's schema, which silently drops
+# unknown keys (`extra=vol.REMOVE_EXTRA`), so /ssl was never mounted.
+map:
+  - ssl
 
 ports:
   8234/tcp: 8234
