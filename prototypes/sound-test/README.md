@@ -18,6 +18,18 @@ Every tap is logged with the `AudioContext`'s state, on screen and in `results.l
 beside `serve.py`. So the only thing to report is what you **heard**: tap **Heard it**
 or **Silence** after each sound.
 
+## Result (2026-09-12, iOS 26.6, Safari and Chrome tabs and the Home Screen app)
+
+Evidence: `results.log` beside this file.
+
+- **The unlock was never the problem.** A1, which does exactly what the app does, was
+  heard in a tab, with the keep-awake video playing, and as a Home Screen app.
+- **A lock kills the sound.** Afterwards the context still reports `running`, but its
+  `currentTime` is frozen, so every beep lands on the same instant and none plays. U1's
+  `resume()` changes nothing. **Only U4, a fresh context made inside a tap, recovers.**
+- The Silent switch mutes the beeps under the default session, and that's how it stays.
+- The keep-awake video doesn't hold the screen on the LAN IP.
+
 ## The suspects, and the buttons that tell them apart
 
 | Suspect | What the buttons show |
