@@ -11,8 +11,9 @@ no passwords. Carries a name and an avatar image.
 
 **Exercise** — a movement in the shared library, e.g. "Double kettlebell clean".
 Carries an optional form-video URL, notes, and a default weight and *optional*
-default reps, used only to prefill a slot in the routine builder. Exercises are
-**archived**, never deleted — their names live on inside recorded workouts.
+default reps. The default weight becomes a slot's baseline whenever the exercise
+is put into a slot; it is never read at workout time. Exercises are **archived**,
+never deleted — their names live on inside recorded workouts.
 
 **Routine** — a reusable workout shape: an ordered list of slots, a round count, and
 one timing config. Routines are **shared** across profiles; the load is personal
@@ -23,7 +24,11 @@ one timing config. Routines are **shared** across profiles; the load is personal
 may appear many times in one routine.
 
 **Weight override** — a profile's own weight for a given slot, replacing the slot's
-baseline. This is what lets one shared routine suit different people.
+baseline. This is what lets one shared routine suit different people. Any weight a
+profile edits is its override; the baseline changes only when the slot's exercise
+does. An override is **held at the slot's position**: reordering a routine leaves
+it where it was, even if a different exercise moves there, and swapping the slot's
+exercise clears it.
 
 **Turn** — one activity performed once, within one round. A workout of 5 activities ×
 3 rounds is 15 turns.
@@ -72,8 +77,8 @@ left reading zero for a routine of carries — see ADR-0002.
 1. **Routines are shared; load is personal.** At workout start each slot's weight
    resolves as `override ?? slot.weight`. A workout never contains an unresolved
    override.
-2. **History is a snapshot.** Editing a routine, renaming an exercise or changing an
-   override never rewrites a recorded workout. See ADR-0001.
+2. **History is a snapshot.** Editing or deleting a routine, renaming an exercise
+   or changing an override never rewrites a recorded workout. See ADR-0001.
 3. **Only a completed workout is recorded.** v1 assumes workouts run to the end;
    totals fold over the whole workout. Starting one writes nothing, and abandoned
    workouts are not modelled yet.
