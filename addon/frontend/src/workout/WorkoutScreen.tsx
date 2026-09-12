@@ -257,22 +257,27 @@ function LiveView({ state, workout, leadIn, hint, soundOn, onToggleSound, onPaus
         </p>
       </section>
 
-      <footer className="flex items-end justify-between gap-[3vmin] p-[4vmin]">
+      {/* Equal side columns keep Pause dead centre whatever the hint's length. */}
+      <footer className="grid grid-cols-[1fr_auto_1fr] items-end gap-[3vmin] p-[4vmin]">
         <p
-          className={`flex-1 ${hint ? "text-[clamp(18px,4vmin,40px)] font-bold" : "text-[clamp(15px,3vmin,30px)] opacity-75"}`}
+          className={
+            hint ? "text-[clamp(18px,4vmin,40px)] font-bold" : "text-[clamp(15px,3vmin,30px)] opacity-75"
+          }
         >
           {hint ?? (next && `Next: ${next.exercise_name} · ${loadLabel(next)}`)}
         </p>
+        <CircleButton variant="tinted" onClick={onPause}>
+          Pause
+        </CircleButton>
         <CircleButton
           variant="tinted"
+          size="small"
+          className="justify-self-end"
           onClick={onToggleSound}
           aria-label={soundOn ? "Turn sound off" : "Turn sound on"}
           aria-pressed={soundOn}
         >
           <SpeakerIcon on={soundOn} />
-        </CircleButton>
-        <CircleButton variant="tinted" onClick={onPause}>
-          Pause
         </CircleButton>
       </footer>
     </>

@@ -1,11 +1,23 @@
 # Changelog
 
-## 0.5.1
+## 0.5.3
 
 - **The beeps work on the iPhone**, including after the phone locks. Locking
   silently broke the sound until the app was reopened; now tapping Resume
   brings it back. Beeps still follow the Silent switch, and music from other
   apps keeps playing.
+
+## 0.5.2
+
+- **Pause sits in the middle** of the workout screen, the same size as before.
+  The sound button is smaller and moves to the bottom right, out of the way.
+
+## 0.5.1
+
+- **HTTPS works.** With `ssl` on, the app refused to start saying the
+  certificate was not found, even with it sitting in the `ssl` folder: the
+  folder was never actually made available to the app. It is now. If you had
+  turned `ssl` on and the app stopped, update and it starts.
 
 ## 0.5.0
 
