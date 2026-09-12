@@ -6,17 +6,10 @@ from kettlebell import store
 from kettlebell.models import Exercise, Profile, Routine
 
 
-def test_a_new_profile_is_silent_and_faceless(db: sqlite3.Connection) -> None:
+def test_a_new_profile_is_faceless(db: sqlite3.Connection) -> None:
     profile = store.add_profile(db, "Andrew")
-    assert profile.sound_enabled is False
     assert profile.avatar_mime is None
     assert store.list_profiles(db) == [profile]
-
-
-def test_sound_follows_the_person(db: sqlite3.Connection, andrew: Profile) -> None:
-    store.set_sound_enabled(db, andrew.id, enabled=True)
-    stored = store.get_profile(db, andrew.id)
-    assert stored is not None and stored.sound_enabled is True
 
 
 def test_avatar_bytes_round_trip(db: sqlite3.Connection, andrew: Profile) -> None:

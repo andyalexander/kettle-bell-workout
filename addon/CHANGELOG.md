@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5
+
+- **The app is silent.** No beeps at all, whatever the profile: the screen's
+  colour and the turn flash carry every signal. The speaker button is gone
+  from the workout screen, and so is the per-profile sound setting.
+
 ## 0.5.4
 
 - **A `favicon.ico`**, the same bell as the app icon, for anything that can't

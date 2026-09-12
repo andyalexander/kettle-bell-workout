@@ -14,7 +14,6 @@ import type { WorkoutTiming } from "./timer/schedule";
 export interface Profile {
   readonly id: number;
   readonly name: string;
-  readonly sound_enabled: boolean;
   /** Always null until avatar upload exists; show the default image. */
   readonly avatar_url: string | null;
 }
@@ -133,13 +132,6 @@ export const listProfiles = () => request<Profile[]>("GET", "/profiles");
 
 export const createProfile = (name: string) =>
   request<Profile>("POST", "/profiles", { name });
-
-/** Fire and forget: a lost preference is not worth interrupting anyone over. */
-export function setSoundEnabled(profileId: number, soundEnabled: boolean): void {
-  request("PATCH", `/profiles/${profileId}`, { sound_enabled: soundEnabled }).catch(
-    () => undefined,
-  );
-}
 
 export const listRoutines = () => request<RoutineSummary[]>("GET", "/routines");
 

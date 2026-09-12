@@ -7,7 +7,7 @@ import type { TimerState } from "../timer/schedule";
 import {
   MAX_PIPS,
   counterLine,
-  cueBetween,
+  flashBetween,
   formatClock,
   formatDuration,
   headline,
@@ -118,52 +118,47 @@ describe("what the screen says", () => {
   });
 });
 
-describe("cues", () => {
-  /** The cue as the display ticks from `from` to `to` seconds elapsed. */
-  const cue = (workout: Workout, from: number, to: number) =>
-    cueBetween(at(workout, from), at(workout, to), workout.rest_seconds);
+describe("flashes", () => {
+  /** The flash as the display ticks from `from` to `to` seconds elapsed. */
+  const flash = (workout: Workout, from: number, to: number) =>
+    flashBetween(at(workout, from), at(workout, to));
 
-  it("flashes and beeps long as prep hands over to turn 1", () => {
-    expect(cue(intervals, 9.5, 10)).toEqual({ flash: "turn", beep: "long" });
+  it("flashes as prep hands over to turn 1", () => {
+    expect(flash(intervals, 9.5, 10)).toBe("turn");
   });
 
   it("marks work → rest with colour alone", () => {
     const restStarts = turnStart(intervals, 0) + 40;
-    expect(cue(intervals, restStarts - 0.5, restStarts)).toEqual({ flash: null, beep: null });
+    expect(flash(intervals, restStarts - 0.5, restStarts)).toBeNull();
   });
 
   it("flashes every turn boundary of a rest-less EMOM", () => {
     const second = turnStart(emom, 1);
-    expect(cue(emom, second - 0.5, second)).toEqual({ flash: "turn", beep: "long" });
+    expect(flash(emom, second - 0.5, second)).toBe("turn");
   });
 
-  it("beeps short at 3-2-1 before a turn change, not before rest", () => {
+  it("gives no signal in the seconds before a turn change", () => {
     const next = turnStart(intervals, 1);
-    expect(cue(intervals, next - 3.5, next - 2.5)).toEqual({ flash: null, beep: "short" });
-    expect(cue(intervals, next - 1.5, next - 0.5)).toEqual({ flash: null, beep: "short" });
-    expect(cue(intervals, next - 4.5, next - 3.5)).toEqual({ flash: null, beep: null });
-
-    const restStarts = turnStart(intervals, 0) + 40;
-    expect(cue(intervals, restStarts - 2.5, restStarts - 1.5).beep).toBeNull();
-    expect(cue(emom, turnStart(emom, 1) - 2.5, turnStart(emom, 1) - 1.5).beep).toBe("short");
-    expect(cue(intervals, 6.5, 7.5).beep).toBe("short");
+    expect(flash(intervals, next - 3.5, next - 2.5)).toBeNull();
+    expect(flash(intervals, next - 1.5, next - 0.5)).toBeNull();
+    expect(flash(intervals, 6.5, 7.5)).toBeNull();
   });
 
   it("ends on the held finish flash", () => {
     const end = turnStart(intervals, 6);
-    expect(cue(intervals, end - 0.5, end)).toEqual({ flash: "finish", beep: "long" });
-    expect(cue(intervals, end, end + 5)).toEqual({ flash: null, beep: null });
+    expect(flash(intervals, end - 0.5, end)).toBe("finish");
+    expect(flash(intervals, end, end + 5)).toBeNull();
   });
 
-  it("stays quiet if the reading ever jumps, rather than firing a cue late", () => {
+  it("stays dark if the reading ever jumps, rather than flashing late", () => {
     const boundary = turnStart(intervals, 2);
-    expect(cue(intervals, boundary - 30, boundary + 5)).toEqual({ flash: null, beep: null });
+    expect(flash(intervals, boundary - 30, boundary + 5)).toBeNull();
     const end = turnStart(intervals, 6);
-    expect(cue(intervals, end - 25, end)).toEqual({ flash: null, beep: null });
+    expect(flash(intervals, end - 25, end)).toBeNull();
   });
 
   it("says nothing when the reading has not moved", () => {
-    expect(cue(intervals, 20, 20)).toEqual({ flash: null, beep: null });
+    expect(flash(intervals, 20, 20)).toBeNull();
   });
 });
 

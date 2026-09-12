@@ -80,7 +80,12 @@ CREATE TABLE workout (
 );
 """
 
-MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA,)
+# The app is silent: the per-profile sound preference is gone with the beeps.
+_DROP_SOUND = """
+ALTER TABLE profile DROP COLUMN sound_enabled;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA, _DROP_SOUND)
 """Ordered migrations; a database at `user_version` N has applied the first N."""
 
 
