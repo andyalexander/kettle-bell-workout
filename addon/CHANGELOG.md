@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4
+
+- **A `favicon.ico`**, the same bell as the app icon, for anything that can't
+  use the SVG one, such as a Home Screen bookmark. Asking for `/favicon.ico`
+  used to get a 404.
+
 ## 0.5.3
 
 - **The beeps work on the iPhone**, including after the phone locks. Locking
