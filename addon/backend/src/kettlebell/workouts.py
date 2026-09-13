@@ -1,7 +1,8 @@
 """Fixing a workout at start, and recording it when it completes.
 
-Two moments, deliberately separate. At start the workout is *fixed* — every weight
-resolved as `override ?? slot.weight`, plus the routine's name, rounds and timing.
+Two moments, deliberately separate. At start the workout is *fixed* — each activity
+at the profile's personal weight or at none (ADR-0004), plus the routine's name,
+rounds and timing.
 Nothing is written yet, because aborting a workout writes nothing at all. When the
 last turn ends, the workout row is written with that same fixed workout and never
 touched again (ADR-0001).
@@ -17,7 +18,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import UTC, datetime
-from typing import Any, SupportsInt, cast
+from typing import Any, SupportsFloat, SupportsInt, cast
 
 from kettlebell.db import transaction
 from kettlebell.models import Activity, RecordedWorkout, Workout
@@ -36,9 +37,9 @@ def fix_workout(
 ) -> Workout:
     """Resolve a routine into what this profile is about to be asked to do.
 
-    Every weight is resolved here — a workout never contains an unresolved
-    override — and every exercise name is copied in, so a later rename or archive
-    leaves the record readable.
+    Each activity takes this profile's own weight for its slot, or none — there is
+    no shared weight to fall back to (ADR-0004). Every exercise name is copied in,
+    so a later rename or archive leaves the record readable.
     """
     routine = connection.execute(
         "SELECT * FROM routine WHERE id = ?", (routine_id,)
@@ -48,11 +49,11 @@ def fix_workout(
 
     rows = connection.execute(
         "SELECT s.position, s.exercise_id, e.name AS exercise_name, s.reps,"
-        " COALESCE(o.weight, s.weight) AS weight"
+        " w.weight"
         " FROM slot s"
         " JOIN exercise e ON e.id = s.exercise_id"
-        " LEFT JOIN weight_override o"
-        "   ON o.slot_id = s.id AND o.profile_id = ?"
+        " LEFT JOIN personal_weight w"
+        "   ON w.slot_id = s.id AND w.profile_id = ?"
         " WHERE s.routine_id = ?"
         " ORDER BY s.position",
         (profile_id, routine_id),
@@ -72,7 +73,7 @@ def fix_workout(
                 exercise_id=int(row["exercise_id"]),
                 exercise_name=str(row["exercise_name"]),
                 reps=_optional_int(row["reps"]),
-                weight=float(row["weight"]),
+                weight=_optional_float(row["weight"]),
             )
             for row in rows
         ),
@@ -192,7 +193,7 @@ def _workout_from_json(payload: str) -> Workout:
                 exercise_id=int(activity["exercise_id"]),
                 exercise_name=str(activity["exercise_name"]),
                 reps=_optional_int(activity["reps"]),
-                weight=float(activity["weight"]),
+                weight=_optional_float(activity["weight"]),
             )
             for activity in activities
         ),
@@ -212,6 +213,11 @@ def _to_recorded(row: sqlite3.Row) -> RecordedWorkout:
 def _optional_int(value: object) -> int | None:
     """Reps are optional, in the row and in the snapshot JSON alike."""
     return None if value is None else int(cast(SupportsInt, value))
+
+
+def _optional_float(value: object) -> float | None:
+    """Read an optional weight (ADR-0004): absent when the profile has none."""
+    return None if value is None else float(cast(SupportsFloat, value))
 
 
 def _to_iso(moment: datetime) -> str:

@@ -10,29 +10,30 @@ STARTED = datetime(2026, 9, 9, 7, 0, tzinfo=UTC)
 ENDED = STARTED + timedelta(minutes=8)
 
 
-def test_a_workout_resolves_the_profiles_own_weight(
+def test_a_workout_takes_the_profiles_own_weight_or_none(
     db: sqlite3.Connection, andrew: Profile, emom: Routine
 ) -> None:
     slot = store.list_slots(db, emom.id)[0]
-    store.set_weight_override(db, andrew.id, slot.id, 32)
+    store.set_weight(db, andrew.id, slot.id, 32)
 
     workout = workouts.fix_workout(db, andrew.id, emom.id)
-    assert [activity.weight for activity in workout.activities] == [32.0, 20.0]
+    # The second slot has no weight for Andrew, so it trains without one.
+    assert [activity.weight for activity in workout.activities] == [32.0, None]
     assert workout.routine_name == "Monday"
     assert (workout.work_seconds, workout.rest_seconds) == (60, 0)
 
 
-def test_one_routine_fixes_differently_per_profile(
+def test_one_profiles_weight_never_reaches_another(
     db: sqlite3.Connection, andrew: Profile, emom: Routine
 ) -> None:
     someone_else = store.add_profile(db, "Guest")
     slot = store.list_slots(db, emom.id)[0]
-    store.set_weight_override(db, andrew.id, slot.id, 32)
+    store.set_weight(db, andrew.id, slot.id, 32)
 
     mine = workouts.fix_workout(db, andrew.id, emom.id)
     theirs = workouts.fix_workout(db, someone_else.id, emom.id)
     assert mine.activities[0].weight == 32.0
-    assert theirs.activities[0].weight == 24.0
+    assert theirs.activities[0].weight is None
 
 
 def test_totals_fold_over_every_turn(
@@ -50,13 +51,9 @@ def test_a_recorded_workout_survives_editing_the_routine(
     workout = workouts.fix_workout(db, andrew.id, emom.id)
     recorded = workouts.record_workout(db, andrew.id, workout, STARTED, ENDED)
 
-    store.update_exercise(
-        db, swing.id, name="Renamed swing", default_reps=10, default_weight=24
-    )
+    store.update_exercise(db, swing.id, name="Renamed swing", default_reps=10)
     store.archive_exercise(db, swing.id)
-    _ = store.set_slots(
-        db, emom.id, [store.SlotSpec(exercise_id=swing.id, reps=100, weight=48)]
-    )
+    _ = store.set_slots(db, emom.id, [store.SlotSpec(exercise_id=swing.id, reps=100)])
 
     stored = workouts.get_workout(db, recorded.id)
     assert stored is not None
@@ -130,22 +127,21 @@ def test_a_routine_without_slots_cannot_be_started(
         _ = workouts.fix_workout(db, andrew.id, 9999)
 
 
-def test_a_repless_workout_survives_the_round_trip(
+def test_a_repless_weightless_workout_survives_the_round_trip(
     db: sqlite3.Connection, andrew: Profile
 ) -> None:
-    """Reps are optional end to end — through the join, the JSON and back."""
-    carry = store.add_exercise(
-        db, "Farmer's carry", default_reps=None, default_weight=16
-    )
+    """Reps and weight are both optional end to end: the join, the JSON and back."""
+    carry = store.add_exercise(db, "Farmer's carry", default_reps=None)
     routine = store.add_routine(
         db, "Carries", rounds=3, work_seconds=40, rest_seconds=20
     )
     _ = store.set_slots(
-        db, routine.id, [store.SlotSpec(exercise_id=carry.id, reps=None, weight=16)]
+        db, routine.id, [store.SlotSpec(exercise_id=carry.id, reps=None)]
     )
 
     workout = workouts.fix_workout(db, andrew.id, routine.id)
     assert workout.activities[0].reps is None
+    assert workout.activities[0].weight is None
 
     recorded = workouts.record_workout(db, andrew.id, workout, STARTED, ENDED)
     stored = workouts.get_workout(db, recorded.id)

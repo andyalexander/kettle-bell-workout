@@ -109,7 +109,8 @@ class ExercisePoint:
     when: datetime
     exercise_name: str
     time_under_load: int
-    top_weight: float
+    # None when every activity of the exercise was trained without a weight.
+    top_weight: float | None
 
 
 def exercise_series(
@@ -121,20 +122,22 @@ def exercise_series(
     rename; the name carried on each point is the one used at the time. An
     activity contributes `rounds * work_seconds`, so an exercise appearing twice
     in one workout counts twice — which is what actually happened to the athlete.
+    An activity trained without a weight still counts its time, but is left out of
+    the top weight rather than read as 0 kg (ADR-0004).
     """
     series: dict[int, list[ExercisePoint]] = defaultdict(list)
     for entry in recorded:
         workout = entry.workout
         per_activity = workout.rounds * workout.work_seconds
-        totals: dict[int, tuple[str, int, float]] = {}
+        totals: dict[int, tuple[str, int, float | None]] = {}
         for activity in workout.activities:
             name, seconds, top = totals.get(
-                activity.exercise_id, (activity.exercise_name, 0, 0.0)
+                activity.exercise_id, (activity.exercise_name, 0, None)
             )
             totals[activity.exercise_id] = (
                 name,
                 seconds + per_activity,
-                max(top, activity.weight),
+                _heavier(top, activity.weight),
             )
         for exercise_id, (name, seconds, top) in totals.items():
             series[exercise_id].append(
@@ -148,6 +151,13 @@ def exercise_series(
     for points in series.values():
         points.sort(key=lambda point: point.when)
     return dict(series)
+
+
+def _heavier(top: float | None, weight: float | None) -> float | None:
+    """Return the heavier of two weights; a missing one leaves the other standing."""
+    if weight is None:
+        return top
+    return weight if top is None else max(top, weight)
 
 
 def _iso_week(day: date) -> tuple[int, int]:

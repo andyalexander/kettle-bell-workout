@@ -240,7 +240,9 @@ function LiveView({ state, workout, leadIn, hint, onPause }: LiveViewProps) {
             hint ? "text-[clamp(18px,4vmin,40px)] font-bold" : "text-[clamp(15px,3vmin,30px)] opacity-75"
           }
         >
-          {hint ?? (next && `Next: ${next.exercise_name} · ${loadLabel(next)}`)}
+          {/* No load to show (ADR-0004) leaves just the name, with no stray dot. */}
+          {hint ??
+            (next && [`Next: ${next.exercise_name}`, loadLabel(next)].filter(Boolean).join(" · "))}
         </p>
         <CircleButton variant="tinted" onClick={onPause}>
           Pause

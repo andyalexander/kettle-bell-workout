@@ -85,7 +85,16 @@ _DROP_SOUND = """
 ALTER TABLE profile DROP COLUMN sound_enabled;
 """
 
-MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA, _DROP_SOUND)
+# Weights belong only to people (ADR-0004). Shared weights are dropped, not handed to
+# anyone; a weight someone already set was always theirs, so its row stays. Each
+# dropped column's CHECK is its own, which is what lets SQLite drop it in place.
+_PERSONAL_WEIGHTS = """
+ALTER TABLE exercise DROP COLUMN default_weight;
+ALTER TABLE slot DROP COLUMN weight;
+ALTER TABLE weight_override RENAME TO personal_weight;
+"""
+
+MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA, _DROP_SOUND, _PERSONAL_WEIGHTS)
 """Ordered migrations; a database at `user_version` N has applied the first N."""
 
 

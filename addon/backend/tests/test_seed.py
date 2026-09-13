@@ -68,14 +68,12 @@ def test_seeding_never_resurrects_an_archived_exercise(
 def test_seeding_leaves_an_edited_starter_routine_alone(
     db: sqlite3.Connection,
 ) -> None:
-    """Rewriting slots would discard edits and could strand a weight override."""
+    """Rewriting slots would discard edits and could strand a personal weight."""
     seed.seed(db)
     routine = store.list_routines(db)[0]
     kept = store.list_slots(db, routine.id)[0]
     _ = store.set_slots(
-        db,
-        routine.id,
-        [store.SlotSpec(exercise_id=kept.exercise_id, reps=12, weight=99.0)],
+        db, routine.id, [store.SlotSpec(exercise_id=kept.exercise_id, reps=12)]
     )
 
     seed.seed(db)
@@ -84,4 +82,11 @@ def test_seeding_leaves_an_edited_starter_routine_alone(
     assert len(slots) == 1
     assert slots[0].id == kept.id
     assert slots[0].reps == 12
-    assert slots[0].weight == 99.0
+
+
+def test_seeding_gives_nobody_a_weight(db: sqlite3.Connection) -> None:
+    """Weights belong only to people (ADR-0004): the seed can't choose one."""
+    seed.seed(db)
+    andrew = store.add_profile(db, "Andrew")
+    routine = store.list_routines(db)[0]
+    assert store.list_weights(db, andrew.id, routine.id) == {}

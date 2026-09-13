@@ -31,14 +31,16 @@ class Profile:
 
 @dataclass(frozen=True, slots=True)
 class Exercise:
-    """A movement in the shared library. Archived, never deleted."""
+    """A movement in the shared library. Archived, never deleted.
+
+    It carries no weight: weights belong only to people (ADR-0004).
+    """
 
     id: int
     name: str
     video_url: str | None
     notes: str | None
     default_reps: int | None
-    default_weight: float
     archived: bool
 
 
@@ -58,10 +60,10 @@ class Routine:
 
 @dataclass(frozen=True, slots=True)
 class Slot:
-    """One position in a routine: an exercise, an optional rep target, a weight.
+    """One position in a routine: an exercise and an optional rep target.
 
-    `reps` is None when the movement is prescribed by load and the work window
-    alone — a carry, a get-up — and the screen then shows only the weight.
+    No weight: each profile sets its own (ADR-0004). `reps` is None when the
+    movement is prescribed by load and the work window alone — a carry, a get-up.
     """
 
     id: int
@@ -69,22 +71,22 @@ class Slot:
     position: int
     exercise_id: int
     reps: int | None
-    weight: float
 
 
 @dataclass(frozen=True, slots=True)
 class Activity:
-    """One entry in a workout, taken from one slot, with the weight resolved.
+    """One entry in a workout, taken from one slot, at the profile's own weight.
 
-    Carries `exercise_id` for per-exercise trends and `exercise_name` so an old
-    workout stays readable after a rename or an archive.
+    `weight` is None when the profile has no weight for the slot: it trains
+    without one (ADR-0004). Carries `exercise_id` for per-exercise trends and
+    `exercise_name` so an old workout stays readable after a rename or an archive.
     """
 
     position: int
     exercise_id: int
     exercise_name: str
     reps: int | None
-    weight: float
+    weight: float | None
 
 
 @dataclass(frozen=True, slots=True)

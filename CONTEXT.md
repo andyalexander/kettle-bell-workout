@@ -10,25 +10,25 @@ docs name a domain concept, they use the term as defined here.
 no passwords. Carries a name and an avatar image.
 
 **Exercise** — a movement in the shared library, e.g. "Double kettlebell clean".
-Carries an optional form-video URL, notes, and a default weight and *optional*
-default reps. The default weight becomes a slot's baseline whenever the exercise
-is put into a slot; it is never read at workout time. Exercises are **archived**,
-never deleted — their names live on inside recorded workouts.
+Carries an optional form-video URL, notes, and *optional* default reps. It carries
+**no weight**: weights belong only to people (ADR-0004). Exercises are
+**archived**, never deleted — their names live on inside recorded workouts.
 
 **Routine** — a reusable workout shape: an ordered list of slots, a round count, and
 one timing config. Routines are **shared** across profiles; the load is personal
-(see *weight override*).
+(see *personal weight*).
 
-**Slot** — one position in a routine: an exercise, a baseline weight, and an
-**optional** rep target. A slot's identity is its **position**, so the same exercise
-may appear many times in one routine.
+**Slot** — one position in a routine: an exercise and an **optional** rep target,
+and no weight. A slot's identity is its **position**, so the same exercise may
+appear many times in one routine.
 
-**Weight override** — a profile's own weight for a given slot, replacing the slot's
-baseline. This is what lets one shared routine suit different people. Any weight a
-profile edits is its override; the baseline changes only when the slot's exercise
-does. An override is **held at the slot's position**: reordering a routine leaves
-it where it was, even if a different exercise moves there, and swapping the slot's
-exercise clears it.
+**Personal weight** — one profile's weight for one slot, and the only weight there
+is: neither an exercise nor a slot carries one (ADR-0004). This is what lets one
+shared routine suit different people. A slot with no personal weight trains
+**without a weight**. A personal weight is **held at the slot's position**:
+reordering a routine leaves it where it was, even if a different exercise moves
+there, and swapping the slot's exercise clears it.
+_Avoid_: weight override, baseline, default weight
 
 **Turn** — one activity performed once, within one round. A workout of 5 activities ×
 3 rounds is 15 turns.
@@ -61,7 +61,7 @@ recorded workouts.
 _Avoid_: session, prescription
 
 **Activity** — one entry in a workout, taken from one slot of its routine: an
-exercise, at the profile's resolved weight, with optional reps. A slot is to a
+exercise, at the profile's personal weight or at none, with optional reps. A slot is to a
 routine what an activity is to a workout; performing an activity once in a round is
 a turn. Not the same as an exercise — one exercise may be two activities at two
 weights, and an activity keeps the exercise's name as it was on the day.
@@ -74,17 +74,17 @@ left reading zero for a routine of carries — see ADR-0002.
 
 ## Rules the model holds to
 
-1. **Routines are shared; load is personal.** At workout start each slot's weight
-   resolves as `override ?? slot.weight`. A workout never contains an unresolved
-   override.
+1. **Routines are shared; load is personal.** At workout start each activity takes
+   the profile's personal weight for its slot, or no weight at all; nothing else
+   supplies one. See ADR-0004.
 2. **History is a snapshot.** Editing or deleting a routine, renaming an exercise
-   or changing an override never rewrites a recorded workout. See ADR-0001.
+   or changing a personal weight never rewrites a recorded workout. See ADR-0001.
 3. **Only a completed workout is recorded.** v1 assumes workouts run to the end;
    totals fold over the whole workout. Starting one writes nothing, and abandoned
    workouts are not modelled yet.
 4. **Reps are optional, and literal when present.** A movement bounded by the work
    window and the bell — a carry, a get-up — carries no rep count, and the screen
-   then shows only the weight. Where reps do appear there is no per-side concept:
+   then shows only the weight, if there is one. Where reps do appear there is no per-side concept:
    unilateral work is expressed by how exercises are named and slots laid out.
 5. **Weights are kg** throughout.
 6. **`/data/kettlebell.db` is the entire application state**, avatars included, so
@@ -92,7 +92,7 @@ left reading zero for a routine of carries — see ADR-0002.
 
 ## Units and identity
 
-- Weight: kilograms, stored as a number.
+- Weight: kilograms, stored as a number, or absent when the profile has none.
 - Timestamps: UTC, stored ISO-8601.
 - An activity stores `exercise_id` alongside the exercise name — the id joins
   per-exercise trends across workouts, the name keeps old rows readable after a
