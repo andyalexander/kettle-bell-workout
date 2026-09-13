@@ -59,8 +59,9 @@ const newKey = () => ++lastKey;
 
 export const kg = (weight: number) => `${weight} kg`;
 
-/** A weight for display: `12 kg`, or a dash when there is none. */
-export const shownWeight = (weight: number | null) => (weight === null ? "—" : kg(weight));
+/** A weight for display: `12 kg`, or plainly "No weight" when there is none (#48). */
+export const shownWeight = (weight: number | null) =>
+  weight === null ? "No weight" : kg(weight);
 
 export const newDraft = (): Draft => ({
   id: null,

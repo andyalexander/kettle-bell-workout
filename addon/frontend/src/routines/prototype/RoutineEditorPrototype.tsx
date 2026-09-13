@@ -23,7 +23,7 @@ import {
   swapExercise,
   warningsFor,
 } from "./model";
-import { VariantA, VariantB, VariantC } from "./variants";
+import { QUIET, VariantA, VariantB, VariantC } from "./variants";
 
 const EDITOR_VARIANTS = { A: "One page", B: "Tap a slot", C: "Modes" } as const;
 type EditorVariant = keyof typeof EDITOR_VARIANTS;
@@ -90,7 +90,8 @@ export function RoutineEditorPrototype({
     scrollTo(0, 0);
   }, [overlay]);
 
-  const title = routine ? "Edit routine" : "New routine";
+  // The page is titled by what it edits, as every other screen is (#48).
+  const title = routine?.name ?? "New routine";
   const switcher = (summary: string) => (
     <PrototypeSwitcher variants={EDITOR_VARIANTS}>{summary}</PrototypeSwitcher>
   );
@@ -139,7 +140,7 @@ export function RoutineEditorPrototype({
     <>
       <div hidden={overlay !== null}>
         <Variant
-          title={title}
+          title={draft.name.trim() || title}
           draft={draft}
           isNew={routine === null}
           problem={problem}
@@ -212,12 +213,8 @@ function ExercisePicker({ library, onPick, onNew, onCancel }: ExercisePickerProp
             </button>
           </li>
         ))}
-        <li>
-          <button
-            type="button"
-            onClick={onNew}
-            className="w-full rounded-[4vmin] border-[3px] border-dashed border-white/30 p-[5vmin] text-[clamp(24px,6vmin,64px)] font-extrabold active:scale-[0.98]"
-          >
+        <li className="flex justify-center">
+          <button type="button" onClick={onNew} className={QUIET}>
             ＋ New exercise
           </button>
         </li>

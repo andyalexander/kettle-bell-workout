@@ -145,10 +145,10 @@ function WeightInput({ slot, onCommit, big = false }: WeightFieldProps) {
   );
 }
 
-/** Only an empty weight needs saying: it trains without one. */
+/** Only an empty weight needs saying, and plainly (#48). */
 function WeightNote({ slot }: { readonly slot: DraftSlot }) {
   if (slot.weight !== null) return null;
-  return <p className={LABEL}>No weight · trains without one</p>;
+  return <p className={LABEL}>No weight</p>;
 }
 
 interface SquareButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -167,13 +167,13 @@ function SquareButton({ label, className = "", ...props }: SquareButtonProps) {
   );
 }
 
+/** Every "add new" is the same quiet pill as ＋ New routine (#48). */
+export const QUIET =
+  "min-h-[48px] rounded-full px-[5vmin] py-[2vmin] text-[clamp(14px,3vmin,24px)] font-bold tracking-[0.06em] uppercase opacity-60 ring-2 ring-white/30 ring-inset active:scale-95";
+
 function AddTile({ onPick }: Pick<EditorProps, "onPick">) {
   return (
-    <button
-      type="button"
-      onClick={() => onPick({ kind: "add" })}
-      className={`${WIDE} rounded-[4vmin] border-[3px] border-dashed border-white/30 p-[5vmin] text-[clamp(24px,6vmin,64px)] font-extrabold active:scale-[0.98]`}
-    >
+    <button type="button" onClick={() => onPick({ kind: "add" })} className={QUIET}>
       ＋ Add exercise
     </button>
   );
@@ -370,7 +370,11 @@ export function VariantC(props: EditorProps) {
   const last = draft.slots.length - 1;
 
   return (
-    <Page title={title} onBack={onCancel}>
+    <Page
+      title={title}
+      onBack={onCancel}
+      action={<CircleButton onClick={onSave}>Save</CircleButton>}
+    >
       <nav className={`${WIDE} grid grid-cols-3 gap-[2vmin]`}>
         {MODES.map((each) => (
           <button
@@ -383,6 +387,8 @@ export function VariantC(props: EditorProps) {
           </button>
         ))}
       </nav>
+      {/* Near Save now it sits in the header, not at the foot of a long list. */}
+      <Problem problem={problem} />
 
       {mode === "Routine" ? (
         <section className={`${WIDE} flex flex-col gap-[4vmin]`}>
@@ -412,7 +418,7 @@ export function VariantC(props: EditorProps) {
                 )}
                 {mode === "Exercises" && (
                   <>
-                    {/* Stacked, so the name keeps the row's width on a phone. */}
+                    {/* Move on the left, change on the right, the name between (#48). */}
                     <div className="flex flex-col gap-[2vmin]">
                       <SquareButton label="Move up" disabled={index === 0} onClick={() => handle.move(-1)}>
                         ▲
@@ -421,19 +427,18 @@ export function VariantC(props: EditorProps) {
                         ▼
                       </SquareButton>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onPick({ kind: "swap", index })}
-                      className="flex min-w-0 flex-1 flex-col items-start gap-[1.5vmin] text-left"
-                    >
-                      <span className={NAME}>
-                        {slot.exercise.name} <span className="text-[0.6em] opacity-50">⇄</span>
-                      </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-[1.5vmin]">
+                      <span className={NAME}>{slot.exercise.name}</span>
                       <span className={LABEL}>{shownWeight(slot.weight)}</span>
-                    </button>
-                    <SquareButton label="Remove" onClick={handle.remove}>
-                      ✕
-                    </SquareButton>
+                    </span>
+                    <div className="flex flex-col gap-[2vmin]">
+                      <SquareButton label="Remove" onClick={handle.remove}>
+                        ✕
+                      </SquareButton>
+                      <SquareButton label="Swap exercise" onClick={() => onPick({ kind: "swap", index })}>
+                        ⇄
+                      </SquareButton>
+                    </div>
                   </>
                 )}
               </li>
@@ -442,17 +447,6 @@ export function VariantC(props: EditorProps) {
         </ol>
       )}
       {mode === "Exercises" && <AddTile onPick={onPick} />}
-      <Problem problem={problem} />
-      {/* Room for the pinned Save, so it never sits on the last row. */}
-      <div className="h-[30vmin]" />
-      <div
-        className="fixed right-[5vmin] z-40"
-        style={{ bottom: "calc(env(safe-area-inset-bottom) + 40px)" }}
-      >
-        <CircleButton className="shadow-2xl" onClick={onSave}>
-          Save
-        </CircleButton>
-      </div>
     </Page>
   );
 }
