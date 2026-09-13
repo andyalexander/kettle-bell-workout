@@ -16,7 +16,7 @@ uv run pyright
 | --- | --- |
 | `db.py` | Connection pragmas, and the migrations keyed by `PRAGMA user_version` |
 | `models.py` | Frozen domain types, named as `CONTEXT.md` names them |
-| `store.py` | Everything still editable: profiles, exercises, routines, slots, overrides |
+| `store.py` | Everything still editable: profiles, exercises, routines, slots, routine lists, personal weights |
 | `workouts.py` | Fixing a workout at start, and recording it when it completes |
 | `metrics.py` | Progress metrics, as pure folds over recorded workouts |
 | `avatars.py` | Downscaling an uploaded avatar before it goes into the profile row |

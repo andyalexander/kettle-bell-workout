@@ -31,8 +31,8 @@ async def test_profiles_list_by_name(
 
     assert response.status_code == 200
     assert response.json() == [
-        {"id": 2, "name": "Andrew", "avatar_url": None},
-        {"id": 1, "name": "Guest", "avatar_url": None},
+        {"id": 2, "name": "Andrew", "avatar_url": None, "routine_ids": []},
+        {"id": 1, "name": "Guest", "avatar_url": None, "routine_ids": []},
     ]
 
 
@@ -40,7 +40,8 @@ async def test_a_profile_is_created_from_a_name_alone(client: AsyncClient) -> No
     response = await client.post("/api/profiles", json={"name": "Andrew"})
 
     assert response.status_code == 201
-    created = {"id": 1, "name": "Andrew", "avatar_url": None}
+    # A new profile's routine list starts empty (ADR-0005).
+    created = {"id": 1, "name": "Andrew", "avatar_url": None, "routine_ids": []}
     assert response.json() == created
     assert (await client.get("/api/profiles")).json() == [created]
 

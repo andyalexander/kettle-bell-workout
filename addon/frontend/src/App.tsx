@@ -4,7 +4,9 @@ import type { Profile, RoutineSummary, Workout } from "./api";
 import { describeFailure, listProfiles, listRoutines, startWorkout } from "./api";
 import type { FinishQueue } from "./finishQueue";
 import { ProfilePicker } from "./profiles/ProfilePicker";
+import { splitLibrary } from "./routines/library";
 import { RoutineEditor } from "./routines/RoutineEditor";
+import { RoutineLibrary } from "./routines/RoutineLibrary";
 import { RoutineList } from "./routines/RoutineList";
 import { CircleButton } from "./ui/CircleButton";
 import { Page } from "./ui/Page";
@@ -16,26 +18,31 @@ interface AppProps {
   readonly flushed: Promise<void>;
 }
 
-/** The routine list and editor hold ids, so a reload never leaves them stale. */
+/** The routine screens hold ids, so a reload never leaves them stale. */
 type Screen =
   | { readonly name: "picker" }
   | { readonly name: "routines"; readonly profileId: number }
+  // ＋ New routine: the library's routines not on the list yet, or one from nothing.
+  | { readonly name: "library"; readonly profileId: number }
   | {
       readonly name: "editor";
       readonly profileId: number;
-      /** Null for ＋ New routine. */
+      /** Null for ＋ Create new. */
       readonly routine: RoutineSummary | null;
     }
   | { readonly name: "workout"; readonly profile: Profile; readonly workout: Workout };
 
 interface Library {
+  /** Everyone, each with the ids of the routines on their list (ADR-0005). */
   readonly profiles: readonly Profile[];
+  /** The whole routine library. */
   readonly routines: readonly RoutineSummary[];
 }
 
 /**
- * Picker → routine list → workout, and back to the list (#19). Nothing shows
- * until the pending-finish queue has been flushed.
+ * Picker → routine list → workout, and back to the list (#19). ＋ New routine
+ * goes by way of the library (ADR-0005). Nothing shows until the pending-finish
+ * queue has been flushed.
  */
 export function App({ queue, flushed }: AppProps) {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -46,6 +53,7 @@ export function App({ queue, flushed }: AppProps) {
   /** Bumped by Back, so a Start still on its way lands nowhere. */
   const startRequest = useRef(0);
 
+  /** At launch, and again after a save, an add or a removal changes the lists. */
   const load = useCallback(async () => {
     setProblem(null);
     try {
@@ -59,16 +67,6 @@ export function App({ queue, flushed }: AppProps) {
   useEffect(() => {
     void flushed.then(load);
   }, [flushed, load]);
-
-  /** After a save or delete: the list shows every routine as it now is. */
-  const reloadRoutines = async () => {
-    try {
-      const routines = await listRoutines();
-      setLibrary((current) => current && { ...current, routines });
-    } catch (error) {
-      setProblem(describeFailure(error));
-    }
-  };
 
   const handleCreated = (profile: Profile) => {
     setLibrary((current) => current && { ...current, profiles: [...current.profiles, profile] });
@@ -122,7 +120,7 @@ export function App({ queue, flushed }: AppProps) {
   if (!library) return <Page title="Kettlebell" />;
 
   const profile =
-    screen.name === "routines" || screen.name === "editor"
+    "profileId" in screen
       ? library.profiles.find(({ id }) => id === screen.profileId)
       : undefined;
 
@@ -136,34 +134,61 @@ export function App({ queue, flushed }: AppProps) {
     );
   }
 
-  if (screen.name === "editor") {
-    return (
-      <RoutineEditor
-        profile={profile}
-        routineId={screen.routine?.id ?? null}
-        routineName={screen.routine?.name ?? null}
-        onClose={(changed) => {
-          if (changed) void reloadRoutines();
-          setScreen({ name: "routines", profileId: profile.id });
-        }}
-      />
-    );
-  }
+  const showRoutines = () => setScreen({ name: "routines", profileId: profile.id });
+
+  const openLibrary = () => {
+    setProblem(null);
+    setScreen({ name: "library", profileId: profile.id });
+  };
 
   const openEditor = (routine: RoutineSummary | null) => {
     setProblem(null);
     setScreen({ name: "editor", profileId: profile.id, routine });
   };
 
+  if (screen.name === "editor") {
+    const creating = screen.routine === null;
+    return (
+      <RoutineEditor
+        profile={profile}
+        routineId={screen.routine?.id ?? null}
+        routineName={screen.routine?.name ?? null}
+        onClose={(changed) => {
+          if (changed) void load();
+          // Backing out of ＋ Create new returns to the library it was opened from.
+          if (creating && !changed) openLibrary();
+          else showRoutines();
+        }}
+      />
+    );
+  }
+
+  const { listed, unlisted } = splitLibrary(library.routines, profile);
+
+  if (screen.name === "library") {
+    return (
+      <RoutineLibrary
+        profile={profile}
+        routines={unlisted}
+        onAdded={async () => {
+          await load();
+          showRoutines();
+        }}
+        onCreate={() => openEditor(null)}
+        onBack={showRoutines}
+      />
+    );
+  }
+
   return (
     <RoutineList
       profile={profile}
-      routines={library.routines}
+      routines={listed}
       startingRoutineId={startingRoutineId}
       problem={problem}
       onChoose={(routine) => void handleStart(profile, routine)}
       onEdit={openEditor}
-      onNew={() => openEditor(null)}
+      onNew={openLibrary}
       onBack={handleBack}
     />
   );

@@ -1,8 +1,11 @@
-"""Editing a routine: reading it as one profile, saving it, and deleting it.
+"""Editing a routine: reading it as one profile, creating it, and saving it.
 
 Routines are shared and weights are personal (ADR-0004), so every edit is made *as*
 one profile: the editor shows that profile's weights and sets them, while everyone
 else's are held at the slot's position and only ever moved or lost behind a ⚠️.
+
+Nothing here deletes a routine. A new one goes on its creator's list, and taking one
+off a list leaves it in the library for anyone to add (ADR-0005).
 """
 
 from __future__ import annotations
@@ -25,7 +28,6 @@ __all__ = [
     "EditableSlot",
     "InvalidDraft",
     "create_routine",
-    "delete_routine",
     "read_routine",
     "save_routine",
 ]
@@ -150,7 +152,10 @@ def read_routine(
 def create_routine(
     connection: sqlite3.Connection, profile_id: int, draft: Draft
 ) -> int:
-    """Create a routine from a draft, with the creator's weights; return its id."""
+    """Create a routine from a draft, on the creator's list with their weights.
+
+    Returns the new routine's id. It goes on nobody else's list (ADR-0005).
+    """
     with transaction(connection):
         _check(connection, draft, routine_id=None, saved_count=0)
         routine = store.add_routine(
@@ -161,6 +166,7 @@ def create_routine(
             rest_seconds=draft.rest_seconds,
         )
         _write_slots(connection, profile_id, routine.id, draft.slots, saved=[])
+        store.add_to_list(connection, profile_id, routine.id)
     return routine.id
 
 
@@ -195,29 +201,6 @@ def save_routine(
             rest_seconds=draft.rest_seconds,
         )
         _write_slots(connection, profile_id, routine_id, draft.slots, saved)
-
-
-def delete_routine(
-    connection: sqlite3.Connection,
-    profile_id: int,
-    routine_id: int,
-    *,
-    confirmed: bool = False,
-) -> None:
-    """Delete a routine as `profile_id`. Its recorded workouts are kept.
-
-    Raises `LookupError` when the routine is gone, and `DamageUnconfirmed` when
-    someone else has a weight on it and `confirmed` is false.
-    """
-    with transaction(connection):
-        if store.get_routine(connection, routine_id) is None:
-            raise LookupError(f"no routine {routine_id}")
-        saved = store.list_slots(connection, routine_id)
-        # Against no slots at all, every weight held on the routine is deleted.
-        damage = _damage(connection, profile_id, routine_id, saved, slots=())
-        if damage and not confirmed:
-            raise DamageUnconfirmed(damage)
-        store.delete_routine(connection, routine_id)
 
 
 def _check(

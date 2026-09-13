@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+- **Everyone has their own list of routines.** The routine list shows only
+  yours. **＋ New routine** now shows every routine that isn't on your list
+  yet: **Add** puts one on it, and **＋ Create new** opens the editor to make
+  one from nothing, as before. A routine you create goes on your list alone.
+- **Remove replaces Delete** in the editor's Routine tab. It takes the routine
+  off *your* list only: it stays under ＋ New routine for anyone to add, and
+  your weights on it and your recorded workouts are kept.
+- After this update everyone's list holds every routine there is today, so
+  nothing disappears. Someone added later starts with an empty list.
+
 ## 0.6.1
 
 - **Back asks before losing an edit.** Leaving the routine editor with unsaved

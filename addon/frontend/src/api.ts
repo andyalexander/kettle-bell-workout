@@ -16,9 +16,11 @@ export interface Profile {
   readonly name: string;
   /** Always null until avatar upload exists; show the default image. */
   readonly avatar_url: string | null;
+  /** The routines on this profile's routine list, by id (ADR-0005). */
+  readonly routine_ids: readonly number[];
 }
 
-/** A routine as the routine list shows it — the same for every profile. */
+/** A routine in the library, as every list of routines shows it — the same for everyone. */
 export interface RoutineSummary {
   readonly id: number;
   readonly name: string;
@@ -102,7 +104,7 @@ export interface RoutineIn {
   readonly slots: readonly SlotIn[];
 }
 
-/** Someone else's weight that a save or delete would move or lose: one ⚠️ line. */
+/** Someone else's weight that a save would move or lose: one ⚠️ line. */
 export interface Damage {
   readonly profile_name: string;
   readonly position: number;
@@ -141,7 +143,7 @@ export class ApiError extends Error {
   }
 }
 
-/** The ⚠️ lines a save or delete was refused with, or null for any other failure. */
+/** The ⚠️ lines a save was refused with, or null for any other failure. */
 export function damageIn(error: unknown): readonly Damage[] | null {
   if (!(error instanceof ApiError) || error.status !== 409) return null;
   const { damage } = (error.detail ?? {}) as { damage?: readonly Damage[] };
@@ -163,7 +165,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) throw await refusal(response);
-  // A delete answers 204 with no body to parse.
+  // An add to or removal from a list answers 204, with no body to parse.
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
@@ -235,14 +237,14 @@ export const saveRoutine = (
     confirmed,
   });
 
-/** Delete as `profileId`; recorded workouts are kept. A `409` carries the damage. */
-export async function deleteRoutine(
-  profileId: number,
-  routineId: number,
-  confirmed: boolean,
-): Promise<void> {
-  const query = confirmed ? "?confirmed=true" : "";
-  await request<null>("DELETE", `/profiles/${profileId}/routines/${routineId}${query}`);
+/** Put a routine from the library on a profile's list (ADR-0005); again is harmless. */
+export async function addToList(profileId: number, routineId: number): Promise<void> {
+  await request<null>("PUT", `/profiles/${profileId}/list/${routineId}`);
+}
+
+/** Take a routine off one profile's list; it stays in the library, their weights too. */
+export async function removeFromList(profileId: number, routineId: number): Promise<void> {
+  await request<null>("DELETE", `/profiles/${profileId}/list/${routineId}`);
 }
 
 /** Record a finish; `201` and a retry's `200` both mean the server has it. */

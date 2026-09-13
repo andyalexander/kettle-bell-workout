@@ -4,10 +4,10 @@ import type { Exercise, Profile } from "../api";
 import {
   createRoutine,
   damageIn,
-  deleteRoutine,
   describeFailure,
   getRoutine,
   listExercises,
+  removeFromList,
   saveRoutine,
 } from "../api";
 import { CircleButton } from "../ui/CircleButton";
@@ -30,11 +30,11 @@ import { WarningScreen } from "./WarningScreen";
 
 interface RoutineEditorProps {
   readonly profile: Profile;
-  /** Null for ＋ New routine. */
+  /** Null for ＋ Create new. */
   readonly routineId: number | null;
   /** The routine's name as the list shows it, for the title while it loads. */
   readonly routineName: string | null;
-  /** `changed` when a save or delete went through, so the list must reload. */
+  /** `changed` when a save or removal went through, so the lists must reload. */
   readonly onClose: (changed: boolean) => void;
 }
 
@@ -45,23 +45,26 @@ interface Loaded {
   readonly library: readonly Exercise[];
 }
 
-const KEPT = "Recorded workouts are kept.";
+/** Removing takes a routine off this profile's list alone (ADR-0005). */
+const REMOVED = [
+  "It stays under ＋ New routine, to add back any time.",
+  "Your weights on it and your recorded workouts are kept.",
+];
 const UNSAVED = "Your changes haven't been saved.";
 
 /**
- * The ⚠️ before a save, delete or discard goes through. A delete always asks
- * first; the server adds the lines of anyone else's weights it would lose, and
- * the answer after those is sent confirmed. Back asks only when it would lose an
- * edit.
+ * The ⚠️ before a save, removal or discard goes through. A save asks only when
+ * the server says it would move someone else's weight, and the answer is sent
+ * confirmed. Remove always asks first. Back asks only when it would lose an edit.
  */
 type Warning =
   | { readonly action: "save"; readonly lines: readonly string[] }
-  | { readonly action: "delete"; readonly lines: readonly string[]; readonly confirmed: boolean }
+  | { readonly action: "remove"; readonly lines: readonly string[] }
   | { readonly action: "discard"; readonly lines: readonly string[] };
 
 const WARNING_TEXT = {
   save: { title: "⚠️ This moves someone's weights", confirmLabel: "Save anyway" },
-  delete: { title: "⚠️ Delete this routine?", confirmLabel: "Delete" },
+  remove: { title: "Take this off your list?", confirmLabel: "Remove" },
   discard: { title: "⚠️ Leave without saving?", confirmLabel: "Discard", backLabel: "Keep editing" },
 } as const;
 
@@ -117,8 +120,8 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
     setLoaded((current) => current && { ...current, draft: change(current.draft) });
   };
 
-  /** Run a save or delete; a 409 opens the ⚠️, anything else is said plainly. */
-  const attempt = async (call: () => Promise<unknown>, onDamage: (lines: string[]) => void) => {
+  /** Run a save or removal; a save's 409 opens the ⚠️, anything else is said plainly. */
+  const attempt = async (call: () => Promise<unknown>, onDamage?: (lines: string[]) => void) => {
     setBusy(true);
     setProblem(null);
     try {
@@ -126,7 +129,7 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
       onClose(true);
     } catch (error) {
       const damage = damageIn(error);
-      if (damage) onDamage(damage.map(damageLine));
+      if (damage && onDamage) onDamage(damage.map(damageLine));
       else setProblem(describeFailure(error));
       setBusy(false);
     }
@@ -146,12 +149,8 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
     void attempt(call, (lines) => setOverlay({ kind: "warning", action: "save", lines }));
   };
 
-  const handleDelete = (id: number, confirmed: boolean) => {
-    void attempt(
-      () => deleteRoutine(profile.id, id, confirmed),
-      (lines) =>
-        setOverlay({ kind: "warning", action: "delete", lines: [...lines, KEPT], confirmed: true }),
-    );
+  const handleRemove = (id: number) => {
+    void attempt(() => removeFromList(profile.id, id));
   };
 
   const handlePicked = (target: PickTarget, exercise: Exercise) => {
@@ -194,11 +193,10 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
             problem={overlay === null ? problem : null}
             update={update}
             onPick={(target) => setOverlay({ kind: "picker", target })}
-            onDelete={
+            onRemove={
               savedId === null
                 ? undefined
-                : () =>
-                    setOverlay({ kind: "warning", action: "delete", lines: [KEPT], confirmed: false })
+                : () => setOverlay({ kind: "warning", action: "remove", lines: REMOVED })
             }
           />
         </Page>
@@ -220,7 +218,7 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
           onConfirm={() => {
             if (overlay.action === "save") handleSave(true);
             else if (overlay.action === "discard") onClose(false);
-            else if (savedId !== null) handleDelete(savedId, overlay.confirmed);
+            else if (savedId !== null) handleRemove(savedId);
           }}
           onBack={() => {
             setProblem(null);
