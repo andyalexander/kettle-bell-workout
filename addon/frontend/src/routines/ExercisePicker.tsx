@@ -6,6 +6,7 @@ import { createExercise, describeFailure } from "../api";
 import { CircleButton } from "../ui/CircleButton";
 import { Page } from "../ui/Page";
 import { QuietButton } from "../ui/QuietButton";
+import { WarningScreen } from "./WarningScreen";
 
 interface ExercisePickerProps {
   readonly library: readonly Exercise[];
@@ -51,6 +52,7 @@ function NewExercise({ onCancel, onAdded }: NewExerciseProps) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -63,8 +65,26 @@ function NewExercise({ onCancel, onAdded }: NewExerciseProps) {
     }
   };
 
+  // Back asks before losing a typed name; Cancel says what it does, so it doesn't.
+  const handleBack = () => (name.trim() ? setLeaving(true) : onCancel());
+
+  if (leaving) {
+    return (
+      <WarningScreen
+        title="⚠️ Leave without adding?"
+        lines={[`${name.trim()} hasn't been added.`]}
+        confirmLabel="Discard"
+        backLabel="Keep editing"
+        busy={false}
+        problem={null}
+        onConfirm={onCancel}
+        onBack={() => setLeaving(false)}
+      />
+    );
+  }
+
   return (
-    <Page title="New exercise" onBack={onCancel}>
+    <Page title="New exercise" onBack={handleBack}>
       <form
         onSubmit={(event) => void handleSubmit(event)}
         className="flex w-full max-w-[900px] flex-col items-center gap-[4vmin]"

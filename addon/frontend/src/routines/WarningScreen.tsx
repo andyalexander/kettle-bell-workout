@@ -6,6 +6,8 @@ interface WarningScreenProps {
   readonly lines: readonly string[];
   /** The risky choice: Save anyway, Delete. */
   readonly confirmLabel: string;
+  /** The safe choice's label; Keep editing where Go back would read as leaving. */
+  readonly backLabel?: string;
   /** A call is on its way; neither choice can be made twice. */
   readonly busy: boolean;
   readonly problem: string | null;
@@ -18,6 +20,7 @@ export function WarningScreen({
   title,
   lines,
   confirmLabel,
+  backLabel = "Go back",
   busy,
   problem,
   onConfirm,
@@ -45,7 +48,7 @@ export function WarningScreen({
       )}
       <div className="flex flex-wrap justify-center gap-[4vmin]">
         <CircleButton disabled={busy} onClick={onBack}>
-          Go back
+          {backLabel}
         </CircleButton>
         <CircleButton variant="outline" disabled={busy} onClick={onConfirm}>
           {busy ? "…" : confirmLabel}
