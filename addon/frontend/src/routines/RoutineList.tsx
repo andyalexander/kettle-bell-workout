@@ -1,6 +1,7 @@
 import type { Profile, RoutineSummary } from "../api";
 import { CircleButton } from "../ui/CircleButton";
 import { Page } from "../ui/Page";
+import { QuietButton } from "../ui/QuietButton";
 import { routineLine } from "./format";
 
 interface RoutineListProps {
@@ -11,12 +12,15 @@ interface RoutineListProps {
   /** Why the last call failed — a Start, or the reload after a workout. */
   readonly problem: string | null;
   readonly onChoose: (routine: RoutineSummary) => void;
+  readonly onEdit: (routine: RoutineSummary) => void;
+  readonly onNew: () => void;
   readonly onBack: () => void;
 }
 
 /**
  * Every routine, the same for everyone (#19). No history and no personal
- * weights here: a profile's load first appears at prep.
+ * weights here: a profile's load first appears at prep. Start is the one big
+ * circle; editing is rare, so its ways in stay small (#48).
  */
 export function RoutineList({
   profile,
@@ -24,8 +28,11 @@ export function RoutineList({
   startingRoutineId,
   problem,
   onChoose,
+  onEdit,
+  onNew,
   onBack,
 }: RoutineListProps) {
+  const starting = startingRoutineId !== null;
   return (
     <Page title={profile.name} onBack={onBack}>
       {problem && (
@@ -41,12 +48,13 @@ export function RoutineList({
       ) : (
         <ul className="flex w-full max-w-[1100px] flex-col gap-[4vmin]">
           {routines.map((routine) => (
+            // Phone: details full width, then Edit and Start sharing a row at
+            // opposite ends. Wider: details and Edit left, Start centred right.
             <li
               key={routine.id}
-              className="flex flex-col gap-[4vmin] rounded-[4vmin] bg-white/[0.07] p-[4vmin] sm:flex-row sm:items-center"
+              className="grid grid-cols-[1fr_auto] gap-x-[4vmin] gap-y-[3vmin] rounded-[4vmin] bg-white/[0.07] p-[4vmin]"
             >
-              {/* Stacked on a phone, so the line never wraps mid-way beside Start. */}
-              <div className="min-w-0 flex-1">
+              <div className="col-span-2 min-w-0 sm:col-span-1">
                 <h2 className="text-[clamp(28px,7vmin,84px)] leading-none font-extrabold tracking-[-0.02em] break-words">
                   {routine.name}
                 </h2>
@@ -57,10 +65,18 @@ export function RoutineList({
                   {routine.exercise_names.join(" · ")}
                 </p>
               </div>
+              <QuietButton
+                className="col-start-1 self-center justify-self-start sm:self-start"
+                aria-label={`Edit ${routine.name}`}
+                disabled={starting}
+                onClick={() => onEdit(routine)}
+              >
+                Edit
+              </QuietButton>
               <CircleButton
-                className="self-end sm:self-auto"
+                className="col-start-2 row-start-2 self-center sm:row-span-2 sm:row-start-1"
                 aria-label={`Start ${routine.name}`}
-                disabled={startingRoutineId !== null}
+                disabled={starting}
                 onClick={() => onChoose(routine)}
               >
                 {startingRoutineId === routine.id ? "…" : "Start"}
@@ -69,6 +85,10 @@ export function RoutineList({
           ))}
         </ul>
       )}
+      {/* Rare, so small and at the very bottom, out of reach of a stray tap. */}
+      <QuietButton className="mt-auto" disabled={starting} onClick={onNew}>
+        ＋ New routine
+      </QuietButton>
     </Page>
   );
 }

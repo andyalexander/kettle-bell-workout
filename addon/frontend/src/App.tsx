@@ -4,6 +4,7 @@ import type { Profile, RoutineSummary, Workout } from "./api";
 import { describeFailure, listProfiles, listRoutines, startWorkout } from "./api";
 import type { FinishQueue } from "./finishQueue";
 import { ProfilePicker } from "./profiles/ProfilePicker";
+import { RoutineEditor } from "./routines/RoutineEditor";
 import { RoutineList } from "./routines/RoutineList";
 import { CircleButton } from "./ui/CircleButton";
 import { Page } from "./ui/Page";
@@ -15,10 +16,16 @@ interface AppProps {
   readonly flushed: Promise<void>;
 }
 
-/** The routine list holds an id, so a reload never leaves it stale. */
+/** The routine list and editor hold ids, so a reload never leaves them stale. */
 type Screen =
   | { readonly name: "picker" }
   | { readonly name: "routines"; readonly profileId: number }
+  | {
+      readonly name: "editor";
+      readonly profileId: number;
+      /** Null for ＋ New routine. */
+      readonly routine: RoutineSummary | null;
+    }
   | { readonly name: "workout"; readonly profile: Profile; readonly workout: Workout };
 
 interface Library {
@@ -52,6 +59,16 @@ export function App({ queue, flushed }: AppProps) {
   useEffect(() => {
     void flushed.then(load);
   }, [flushed, load]);
+
+  /** After a save or delete: the list shows every routine as it now is. */
+  const reloadRoutines = async () => {
+    try {
+      const routines = await listRoutines();
+      setLibrary((current) => current && { ...current, routines });
+    } catch (error) {
+      setProblem(describeFailure(error));
+    }
+  };
 
   const handleCreated = (profile: Profile) => {
     setLibrary((current) => current && { ...current, profiles: [...current.profiles, profile] });
@@ -105,7 +122,7 @@ export function App({ queue, flushed }: AppProps) {
   if (!library) return <Page title="Kettlebell" />;
 
   const profile =
-    screen.name === "routines"
+    screen.name === "routines" || screen.name === "editor"
       ? library.profiles.find(({ id }) => id === screen.profileId)
       : undefined;
 
@@ -119,6 +136,25 @@ export function App({ queue, flushed }: AppProps) {
     );
   }
 
+  if (screen.name === "editor") {
+    return (
+      <RoutineEditor
+        profile={profile}
+        routineId={screen.routine?.id ?? null}
+        routineName={screen.routine?.name ?? null}
+        onClose={(changed) => {
+          if (changed) void reloadRoutines();
+          setScreen({ name: "routines", profileId: profile.id });
+        }}
+      />
+    );
+  }
+
+  const openEditor = (routine: RoutineSummary | null) => {
+    setProblem(null);
+    setScreen({ name: "editor", profileId: profile.id, routine });
+  };
+
   return (
     <RoutineList
       profile={profile}
@@ -126,6 +162,8 @@ export function App({ queue, flushed }: AppProps) {
       startingRoutineId={startingRoutineId}
       problem={problem}
       onChoose={(routine) => void handleStart(profile, routine)}
+      onEdit={openEditor}
+      onNew={() => openEditor(null)}
       onBack={handleBack}
     />
   );
