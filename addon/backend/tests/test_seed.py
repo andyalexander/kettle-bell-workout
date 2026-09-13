@@ -84,6 +84,34 @@ def test_seeding_leaves_an_edited_starter_routine_alone(
     assert slots[0].reps == 12
 
 
+def test_seeding_leaves_a_renamed_starter_routine_alone(
+    db: sqlite3.Connection,
+) -> None:
+    """The starter is for an empty database only, whatever it has since become."""
+    seed.seed(db)
+    routine = store.list_routines(db)[0]
+    store.update_routine(
+        db, routine.id, name="Mine", rounds=2, work_seconds=30, rest_seconds=30
+    )
+
+    seed.seed(db)
+
+    assert [routine.name for routine in store.list_routines(db)] == ["Mine"]
+
+
+def test_seeding_never_brings_back_a_deleted_starter_routine(
+    db: sqlite3.Connection,
+) -> None:
+    seed.seed(db)
+    starter = store.list_routines(db)[0]
+    _ = store.add_routine(db, "Friday", rounds=3, work_seconds=40, rest_seconds=20)
+    store.delete_routine(db, starter.id)
+
+    seed.seed(db)
+
+    assert [routine.name for routine in store.list_routines(db)] == ["Friday"]
+
+
 def test_seeding_gives_nobody_a_weight(db: sqlite3.Connection) -> None:
     """Weights belong only to people (ADR-0004): the seed can't choose one."""
     seed.seed(db)

@@ -5,15 +5,12 @@ assertion is about what the iPad would see over the wire.
 """
 
 import sqlite3
-from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
 from kettlebell import store
-from kettlebell.config import Settings
-from kettlebell.main import create_app
 from kettlebell.models import Profile, RecordedWorkout, Routine
 from kettlebell.seed import seed
 
@@ -22,30 +19,6 @@ pytestmark = pytest.mark.anyio
 # As the iPad stamps them: UTC, to the millisecond.
 STARTED = "2026-09-09T07:00:00.000Z"
 ENDED = "2026-09-09T07:08:10.250Z"
-
-
-@pytest.fixture
-def published() -> list[RecordedWorkout]:
-    """Every workout handed to the MQTT seam, in the order it was handed over."""
-    return []
-
-
-@pytest.fixture
-async def client(
-    db: sqlite3.Connection,
-    tmp_path_settings: Settings,
-    published: list[RecordedWorkout],
-) -> AsyncIterator[AsyncClient]:
-    """Talk to the app over ASGI, against the file `db` has already migrated.
-
-    The lifespan is not entered: seeding would put the starter library in every
-    test's way, and migration has already happened.
-    """
-    assert tmp_path_settings.database_path.exists(), db
-    app = create_app(tmp_path_settings, on_recorded=published.append)
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
 
 
 async def test_profiles_list_by_name(

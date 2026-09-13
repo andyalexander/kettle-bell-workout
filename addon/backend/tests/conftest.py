@@ -1,13 +1,15 @@
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 from kettlebell import store
 from kettlebell.config import Settings
 from kettlebell.db import open_database
-from kettlebell.models import Exercise, Profile, Routine
+from kettlebell.main import create_app
+from kettlebell.models import Exercise, Profile, RecordedWorkout, Routine
 
 
 @pytest.fixture
@@ -34,6 +36,30 @@ def db(tmp_path: Path) -> Iterator[sqlite3.Connection]:
     connection = open_database(tmp_path / "kettlebell.db")
     yield connection
     connection.close()
+
+
+@pytest.fixture
+def published() -> list[RecordedWorkout]:
+    """Every workout handed to the MQTT seam, in the order it was handed over."""
+    return []
+
+
+@pytest.fixture
+async def client(
+    db: sqlite3.Connection,
+    tmp_path_settings: Settings,
+    published: list[RecordedWorkout],
+) -> AsyncIterator[AsyncClient]:
+    """Talk to the app over ASGI, against the file `db` has already migrated.
+
+    The lifespan is not entered: seeding would put the starter library in every
+    test's way, and migration has already happened.
+    """
+    assert tmp_path_settings.database_path.exists(), db
+    app = create_app(tmp_path_settings, on_recorded=published.append)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
 
 
 @pytest.fixture

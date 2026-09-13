@@ -93,14 +93,14 @@ def _seed_exercises(connection: sqlite3.Connection) -> dict[str, Exercise]:
 def _seed_routine(
     connection: sqlite3.Connection, exercises: dict[str, Exercise]
 ) -> Routine | None:
-    """Create the starter routine, unless a routine by that name already exists.
+    """Create the starter routine, but only in a database with no routines at all.
 
-    An existing routine is left completely alone — it may have been edited, and
-    rewriting its slots would discard whatever was changed and, worse, could move
-    an exercise under a slot id somebody's personal weight is keyed on.
+    Once routines can be edited, the starter may have been renamed or deleted, and
+    looking it up by name would bring it back. An existing routine is left
+    completely alone: rewriting its slots would discard whatever was changed and
+    could move an exercise under a slot somebody's personal weight is keyed on.
     """
-    existing = list_routines(connection)
-    if any(routine.name == STARTER_ROUTINE.name for routine in existing):
+    if list_routines(connection):
         return None
     routine = add_routine(
         connection,
