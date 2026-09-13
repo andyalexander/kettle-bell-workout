@@ -31,10 +31,9 @@ __all__ = ["SEED_EXERCISES", "STARTER_ROUTINE", "seed"]
 
 @dataclass(frozen=True, slots=True)
 class SeedExercise:
-    """One library entry, as content rather than as a row."""
+    """One library entry, as content rather than as a row. A name, and no weight."""
 
     name: str
-    default_weight: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,16 +48,16 @@ class SeedRoutine:
 
 
 SEED_EXERCISES: tuple[SeedExercise, ...] = (
-    SeedExercise("Thruster", 10.0),
-    SeedExercise("Single-arm row", 12.0),
-    SeedExercise("Farmer's carry", 16.0),
-    SeedExercise("Halo", 8.0),
-    SeedExercise("Two-hand swing", 16.0),
+    SeedExercise("Thruster"),
+    SeedExercise("Single-arm row"),
+    SeedExercise("Farmer's carry"),
+    SeedExercise("Halo"),
+    SeedExercise("Two-hand swing"),
 )
-"""Andrew's movements, at weights drawn from the bells he owns (6/8/10/12/16 kg).
+"""Andrew's movements, by name alone.
 
-Weights are only a prefill for the routine builder; the load actually trained is
-the slot's, or a profile's own weight override on top of it.
+Weights belong only to people (ADR-0004), so the seed can't choose one: each
+profile sets its own, or trains without one.
 """
 
 STARTER_ROUTINE = SeedRoutine(
@@ -86,10 +85,7 @@ def _seed_exercises(connection: sqlite3.Connection) -> dict[str, Exercise]:
     for candidate in SEED_EXERCISES:
         if candidate.name not in existing:
             existing[candidate.name] = add_exercise(
-                connection,
-                candidate.name,
-                default_reps=None,
-                default_weight=candidate.default_weight,
+                connection, candidate.name, default_reps=None
             )
     return {candidate.name: existing[candidate.name] for candidate in SEED_EXERCISES}
 
@@ -101,7 +97,7 @@ def _seed_routine(
 
     An existing routine is left completely alone — it may have been edited, and
     rewriting its slots would discard whatever was changed and, worse, could move
-    an exercise under a slot id somebody's weight override is keyed on.
+    an exercise under a slot id somebody's personal weight is keyed on.
     """
     existing = list_routines(connection)
     if any(routine.name == STARTER_ROUTINE.name for routine in existing):
@@ -117,11 +113,7 @@ def _seed_routine(
         connection,
         routine.id,
         [
-            SlotSpec(
-                exercise_id=exercises[name].id,
-                reps=None,
-                weight=exercises[name].default_weight,
-            )
+            SlotSpec(exercise_id=exercises[name].id, reps=None)
             for name in STARTER_ROUTINE.exercise_names
         ],
     )

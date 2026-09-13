@@ -116,6 +116,11 @@ describe("what the screen says", () => {
     expect(loadLabel(activity(0, "Farmer's carry", null))).toBe("16 kg");
     expect(loadLabel({ ...activity(0, "Halo"), weight: 12.5 })).toBe("10 × 12.5 kg");
   });
+
+  it("shows no weight at all for an activity trained without one (ADR-0004)", () => {
+    expect(loadLabel({ ...activity(0, "Thruster", 10), weight: null })).toBe("10 reps");
+    expect(loadLabel({ ...activity(0, "Farmer's carry", null), weight: null })).toBe("");
+  });
 });
 
 describe("flashes", () => {

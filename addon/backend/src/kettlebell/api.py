@@ -144,8 +144,9 @@ def workout(profile_id: int, routine_id: int, db: Db) -> Workout:
     `POST /api/workouts` as received (ADR-0003). A routine that does not exist
     and one with no slots are both not found: neither can be started.
     """
-    # Checked here because resolving weights would not notice: with no profile,
-    # there are simply no overrides, and every baseline would come back.
+    # Checked here because fixing the workout would not notice: with no profile,
+    # there are simply no personal weights, and every activity would come back
+    # weightless.
     if store.get_profile(db, profile_id) is None:
         raise HTTPException(status_code=404, detail=f"no profile {profile_id}")
     try:

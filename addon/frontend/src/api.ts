@@ -30,18 +30,18 @@ export interface RoutineSummary {
   readonly exercise_names: readonly string[];
 }
 
-/** One entry in a workout: an exercise at the profile's resolved weight. */
+/** One entry in a workout: an exercise at the profile's own weight, or at none. */
 export interface Activity {
   readonly position: number;
   readonly exercise_id: number;
   readonly exercise_name: string;
   /** Absent for a movement bounded by the clock and the bell (ADR-0002). */
   readonly reps: number | null;
-  /** Kilograms. */
-  readonly weight: number;
+  /** Kilograms; null when the profile has set none, so it trains without one (ADR-0004). */
+  readonly weight: number | null;
 }
 
-/** A workout as fixed at start — every weight already resolved. */
+/** A workout as fixed at start — each activity at the profile's own weight, or none. */
 export interface Workout {
   readonly routine_id: number;
   readonly routine_name: string;

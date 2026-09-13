@@ -53,6 +53,37 @@ def test_dropping_sound_keeps_every_profile(tmp_path: Path) -> None:
     old.close()
 
 
+def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
+    # `table` is always a literal from the test, never input.
+    return {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+
+
+def test_personal_weights_drop_every_shared_weight(tmp_path: Path) -> None:
+    # A database from before weights belonged only to people, as the Pi's is.
+    old = connect(tmp_path / "kettlebell.db")
+    _ = old.executescript(
+        f"BEGIN;\n{MIGRATIONS[0]}\n{MIGRATIONS[1]}\nPRAGMA user_version = 2;\n"
+        "INSERT INTO profile (name) VALUES ('Andrew');\n"
+        "INSERT INTO exercise (name, default_weight) VALUES ('Halo', 8);\n"
+        "INSERT INTO routine (name, rounds, work_seconds, rest_seconds)"
+        " VALUES ('Starter circuit', 3, 40, 20);\n"
+        "INSERT INTO slot (routine_id, position, exercise_id, weight)"
+        " VALUES (1, 0, 1, 8);\n"
+        "INSERT INTO weight_override (profile_id, slot_id, weight) VALUES (1, 1, 10);\n"
+        "COMMIT;"
+    )
+
+    assert apply_migrations(old) == len(MIGRATIONS)
+    # Shared weights are dropped, not handed to anyone (ADR-0004).
+    assert "default_weight" not in _columns(old, "exercise")
+    assert "weight" not in _columns(old, "slot")
+    # A weight someone already set was always theirs, so it stays.
+    rows = old.execute("SELECT profile_id, slot_id, weight FROM personal_weight")
+    assert [tuple(row) for row in rows] == [(1, 1, 10.0)]
+    assert old.execute("SELECT count(*) FROM slot").fetchone()[0] == 1
+    old.close()
+
+
 def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
     names = {
         row["name"]
@@ -63,7 +94,7 @@ def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
         "exercise",
         "routine",
         "slot",
-        "weight_override",
+        "personal_weight",
         "workout",
     } <= names
 
@@ -71,8 +102,8 @@ def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
 def test_foreign_keys_are_enforced(db: sqlite3.Connection) -> None:
     with pytest.raises(sqlite3.IntegrityError):
         _ = db.execute(
-            "INSERT INTO slot (routine_id, position, exercise_id, reps, weight)"
-            " VALUES (99, 0, 99, 5, 24)"
+            "INSERT INTO slot (routine_id, position, exercise_id, reps)"
+            " VALUES (99, 0, 99, 5)"
         )
 
 

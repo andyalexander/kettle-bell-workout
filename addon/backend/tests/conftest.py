@@ -43,24 +43,27 @@ def andrew(db: sqlite3.Connection) -> Profile:
 
 @pytest.fixture
 def swing(db: sqlite3.Connection) -> Exercise:
-    return store.add_exercise(db, "Two-hand swing", default_reps=10, default_weight=24)
+    return store.add_exercise(db, "Two-hand swing", default_reps=10)
 
 
 @pytest.fixture
 def clean(db: sqlite3.Connection) -> Exercise:
-    return store.add_exercise(db, "Double clean", default_reps=5, default_weight=20)
+    return store.add_exercise(db, "Double clean", default_reps=5)
 
 
 @pytest.fixture
 def emom(db: sqlite3.Connection, swing: Exercise, clean: Exercise) -> Routine:
-    """Two slots, four rounds, a rest-less 60-second EMOM."""
+    """Two slots, four rounds, a rest-less 60-second EMOM.
+
+    No weights: those are personal, and nobody has set one yet.
+    """
     routine = store.add_routine(db, "Monday", rounds=4, work_seconds=60, rest_seconds=0)
     _ = store.set_slots(
         db,
         routine.id,
         [
-            store.SlotSpec(exercise_id=swing.id, reps=10, weight=24),
-            store.SlotSpec(exercise_id=clean.id, reps=5, weight=20),
+            store.SlotSpec(exercise_id=swing.id, reps=10),
+            store.SlotSpec(exercise_id=clean.id, reps=5),
         ],
     )
     return routine

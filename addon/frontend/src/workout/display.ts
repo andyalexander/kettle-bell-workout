@@ -82,10 +82,14 @@ export function headline(state: TimerState, workout: Workout): Headline {
   return { activity: activityAt(workout, state.turn), upcoming: false };
 }
 
-/** `10 × 16 kg`, or only the weight for a movement with no rep count (ADR-0002). */
-export function loadLabel(activity: Activity): string {
-  const weight = `${activity.weight} kg`;
-  return activity.reps === null ? weight : `${activity.reps} × ${weight}`;
+/**
+ * `10 × 16 kg`; only the weight for a movement with no rep count (ADR-0002);
+ * `10 reps`, or nothing, for an activity trained without a weight (ADR-0004).
+ */
+export function loadLabel({ reps, weight }: Activity): string {
+  if (weight === null) return reps === null ? "" : `${reps} reps`;
+  const load = `${weight} kg`;
+  return reps === null ? load : `${reps} × ${load}`;
 }
 
 // --- cues -------------------------------------------------------------------

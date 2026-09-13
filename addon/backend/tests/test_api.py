@@ -127,11 +127,11 @@ async def test_a_routine_with_no_slots_is_not_offered(
     assert [routine["name"] for routine in response.json()] == ["Starter circuit"]
 
 
-async def test_starting_a_workout_resolves_the_profiles_own_weights(
+async def test_starting_a_workout_takes_the_profiles_own_weights_or_none(
     client: AsyncClient, db: sqlite3.Connection, andrew: Profile, emom: Routine
 ) -> None:
     swing_slot = store.list_slots(db, emom.id)[0]
-    store.set_weight_override(db, andrew.id, swing_slot.id, 32)
+    store.set_weight(db, andrew.id, swing_slot.id, 32)
 
     response = await client.get(f"/api/profiles/{andrew.id}/routines/{emom.id}/workout")
 
@@ -155,7 +155,8 @@ async def test_starting_a_workout_resolves_the_profiles_own_weights(
                 "exercise_id": 2,
                 "exercise_name": "Double clean",
                 "reps": 5,
-                "weight": 20.0,
+                # Andrew has no weight here, and nothing shared stands in (ADR-0004).
+                "weight": None,
             },
         ],
     }
@@ -211,6 +212,18 @@ async def test_finishing_records_the_workout(
 
     assert response.status_code == 201
     assert response.json() == {"id": 1}
+
+
+async def test_a_weightless_workout_is_recorded(
+    client: AsyncClient, andrew: Profile, emom: Routine
+) -> None:
+    """Nobody has set a weight, so the iPad sends nulls back (ADR-0004)."""
+    finish = await _finish(client, andrew.id, emom.id)
+    assert [activity["weight"] for activity in finish["activities"]] == [None, None]
+
+    response = await client.post("/api/workouts", json=finish)
+
+    assert response.status_code == 201
 
 
 async def test_a_retried_finish_writes_nothing_and_answers_with_the_same_id(

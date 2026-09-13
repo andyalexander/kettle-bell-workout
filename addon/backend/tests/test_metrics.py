@@ -165,3 +165,31 @@ def test_repeated_activities_of_one_exercise_sum_within_a_workout() -> None:
     # Two activities of the same exercise, two rounds, 40s of work each.
     assert point.time_under_load == 2 * 2 * 40
     assert point.top_weight == 32.0
+
+
+def test_top_weight_skips_an_activity_trained_without_one() -> None:
+    """No weight is not 0 kg (ADR-0004): it is left out, and the time still counts."""
+    weightless_swing = Activity(
+        position=2, exercise_id=1, exercise_name="Two-hand swing", reps=8, weight=None
+    )
+    weightless_carry = Activity(
+        position=3,
+        exercise_id=9,
+        exercise_name="Farmer's carry",
+        reps=None,
+        weight=None,
+    )
+    workout = Workout(
+        routine_id=1,
+        routine_name="Monday",
+        rounds=1,
+        work_seconds=60,
+        rest_seconds=0,
+        activities=(SWING, weightless_swing, weightless_carry),
+    )
+    recorded = _recorded(1, datetime(2026, 9, 1, tzinfo=UTC), workout)
+
+    series = metrics.exercise_series([recorded])
+    assert series[1][0].top_weight == 24.0
+    assert series[9][0].top_weight is None
+    assert series[9][0].time_under_load == 60

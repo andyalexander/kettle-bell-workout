@@ -44,8 +44,8 @@ def test_slot_positions_are_unique_within_a_routine(
 ) -> None:
     with pytest.raises(sqlite3.IntegrityError):
         _ = db.execute(
-            "INSERT INTO slot (routine_id, position, exercise_id, reps, weight)"
-            " SELECT routine_id, position, exercise_id, reps, weight"
+            "INSERT INTO slot (routine_id, position, exercise_id, reps)"
+            " SELECT routine_id, position, exercise_id, reps"
             " FROM slot WHERE routine_id = ? LIMIT 1",
             (emom.id,),
         )
@@ -61,53 +61,56 @@ def test_the_same_exercise_may_fill_several_slots(
         db,
         routine.id,
         [
-            store.SlotSpec(exercise_id=swing.id, reps=10, weight=16),
-            store.SlotSpec(exercise_id=swing.id, reps=8, weight=24),
+            store.SlotSpec(exercise_id=swing.id, reps=10),
+            store.SlotSpec(exercise_id=swing.id, reps=8),
         ],
     )
     assert [slot.position for slot in slots] == [0, 1]
     assert {slot.exercise_id for slot in slots} == {swing.id}
 
 
-def test_editing_slots_keeps_ids_and_therefore_overrides(
+def test_editing_slots_keeps_ids_and_therefore_personal_weights(
     db: sqlite3.Connection, andrew: Profile, emom: Routine, swing: Exercise
 ) -> None:
     first, second = store.list_slots(db, emom.id)
-    store.set_weight_override(db, andrew.id, first.id, 32)
+    store.set_weight(db, andrew.id, first.id, 32)
 
-    # Editing the reps in place must not cost Andrew his personal load.
+    # Editing the reps in place must not cost Andrew his personal weight.
     edited = store.set_slots(
         db,
         emom.id,
         [
-            store.SlotSpec(exercise_id=swing.id, reps=15, weight=24),
-            store.SlotSpec(
-                exercise_id=second.exercise_id, reps=second.reps, weight=second.weight
-            ),
+            store.SlotSpec(exercise_id=swing.id, reps=15),
+            store.SlotSpec(exercise_id=second.exercise_id, reps=second.reps),
         ],
     )
     assert edited[0].id == first.id
     assert edited[0].reps == 15
-    assert store.list_weight_overrides(db, andrew.id, emom.id) == {first.id: 32.0}
+    assert store.list_weights(db, andrew.id, emom.id) == {first.id: 32.0}
 
 
 def test_shortening_a_routine_drops_the_trailing_slots(
     db: sqlite3.Connection, emom: Routine, swing: Exercise
 ) -> None:
-    kept = store.set_slots(
-        db, emom.id, [store.SlotSpec(exercise_id=swing.id, reps=10, weight=24)]
-    )
+    kept = store.set_slots(db, emom.id, [store.SlotSpec(exercise_id=swing.id, reps=10)])
     assert len(kept) == 1
     assert len(store.list_slots(db, emom.id)) == 1
 
 
-def test_an_override_is_one_weight_per_profile_and_slot(
+def test_a_personal_weight_is_one_weight_per_profile_and_slot(
     db: sqlite3.Connection, andrew: Profile, emom: Routine
 ) -> None:
     slot = store.list_slots(db, emom.id)[0]
-    store.set_weight_override(db, andrew.id, slot.id, 28)
-    store.set_weight_override(db, andrew.id, slot.id, 32)
-    assert store.list_weight_overrides(db, andrew.id, emom.id) == {slot.id: 32.0}
+    store.set_weight(db, andrew.id, slot.id, 28)
+    store.set_weight(db, andrew.id, slot.id, 32)
+    assert store.list_weights(db, andrew.id, emom.id) == {slot.id: 32.0}
 
-    store.clear_weight_override(db, andrew.id, slot.id)
-    assert store.list_weight_overrides(db, andrew.id, emom.id) == {}
+    # Clearing leaves no weight at all: there is nothing shared to fall back to.
+    store.clear_weight(db, andrew.id, slot.id)
+    assert store.list_weights(db, andrew.id, emom.id) == {}
+
+
+def test_a_routine_starts_with_no_weights_for_anyone(
+    db: sqlite3.Connection, andrew: Profile, emom: Routine
+) -> None:
+    assert store.list_weights(db, andrew.id, emom.id) == {}
