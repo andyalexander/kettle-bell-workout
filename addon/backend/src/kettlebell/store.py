@@ -1,6 +1,7 @@
 """Reads and writes for everything that is still editable.
 
-Profiles, the exercise library, routines, slots and personal weights all change
+Profiles, the exercise library, routines, slots, routine lists and personal weights
+all change
 freely — history is protected by snapshotting each workout (ADR-0001), not by
 locking these rows. Workouts live in `kettlebell.workouts`.
 """
@@ -21,6 +22,7 @@ __all__ = [
     "archive_exercise",
     "add_exercise",
     "add_routine",
+    "add_to_list",
     "clear_slot_weights",
     "clear_weight",
     "delete_routine",
@@ -31,9 +33,11 @@ __all__ = [
     "list_exercises",
     "list_profiles",
     "list_routine_exercise_names",
+    "list_routine_lists",
     "list_routines",
     "list_slots",
     "list_weights",
+    "remove_from_list",
     "set_avatar",
     "set_slots",
     "set_weight",
@@ -254,7 +258,7 @@ def delete_routine(connection: sqlite3.Connection, routine_id: int) -> None:
 
 
 def list_routines(connection: sqlite3.Connection) -> list[Routine]:
-    """Every routine, by name — routines are shared across profiles."""
+    """List the whole routine library by name, whoever's list each one is on."""
     rows = connection.execute("SELECT * FROM routine ORDER BY name").fetchall()
     return [_to_routine(row) for row in rows]
 
@@ -317,6 +321,44 @@ def list_slots(connection: sqlite3.Connection, routine_id: int) -> list[Slot]:
         "SELECT * FROM slot WHERE routine_id = ? ORDER BY position", (routine_id,)
     ).fetchall()
     return [_to_slot(row) for row in rows]
+
+
+# --- routine lists (ADR-0005) -----------------------------------------------
+
+
+def add_to_list(
+    connection: sqlite3.Connection, profile_id: int, routine_id: int
+) -> None:
+    """Put a routine on a profile's list; one already there stays as it is."""
+    with transaction(connection):
+        _ = connection.execute(
+            "INSERT INTO profile_routine (profile_id, routine_id) VALUES (?, ?)"
+            " ON CONFLICT DO NOTHING",
+            (profile_id, routine_id),
+        )
+
+
+def remove_from_list(
+    connection: sqlite3.Connection, profile_id: int, routine_id: int
+) -> None:
+    """Take a routine off one profile's list. The routine and every weight stay."""
+    with transaction(connection):
+        _ = connection.execute(
+            "DELETE FROM profile_routine WHERE profile_id = ? AND routine_id = ?",
+            (profile_id, routine_id),
+        )
+
+
+def list_routine_lists(connection: sqlite3.Connection) -> dict[int, list[int]]:
+    """Each profile's routine ids, keyed by profile id. An empty list has no entry."""
+    rows = connection.execute(
+        "SELECT profile_id, routine_id FROM profile_routine"
+        " ORDER BY profile_id, routine_id"
+    ).fetchall()
+    lists: dict[int, list[int]] = {}
+    for row in rows:
+        lists.setdefault(int(row["profile_id"]), []).append(int(row["routine_id"]))
+    return lists
 
 
 # --- personal weights -------------------------------------------------------

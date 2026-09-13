@@ -4,8 +4,12 @@ The iPad carries a workout from start to finish (ADR-0003): starting one is a re
 finishing it is the only write, and aborting makes no call at all.
 
 Editing is done as one profile (`kettlebell.editing`): the editor sees and sets that
-profile's weights, and a save or delete that would shift or delete anyone else's
-answers `409` until it is confirmed.
+profile's weights, and a save that would shift or delete anyone else's answers `409`
+until it is confirmed.
+
+Every routine is in the library at `/api/routines`, but each profile trains from its
+own routine list (ADR-0005): its routines' ids come with the profile, and
+`/api/profiles/{id}/list/{routine_id}` adds a routine to it or takes one off.
 
 Handlers are plain `def`, so FastAPI runs each in its threadpool, and every request
 gets a connection of its own, closed once the response is done. The database path
@@ -73,17 +77,22 @@ router = APIRouter(prefix="/api")
 
 
 class ProfileOut(BaseModel):
-    """A profile as the picker shows it."""
+    """A profile as the picker shows it, with the routines on its list."""
 
     id: int
     name: str
     # Always null until avatar upload exists; the picker falls back to a default.
     avatar_url: str | None
+    # Its routine list (ADR-0005): the app shows these of the library, and offers the
+    # rest under ＋ New routine.
+    routine_ids: list[int]
 
     @classmethod
-    def of(cls, profile: Profile) -> ProfileOut:
-        """Render a stored profile for the wire."""
-        return cls(id=profile.id, name=profile.name, avatar_url=None)
+    def of(cls, profile: Profile, routine_ids: list[int]) -> ProfileOut:
+        """Render a stored profile and its routine list for the wire."""
+        return cls(
+            id=profile.id, name=profile.name, avatar_url=None, routine_ids=routine_ids
+        )
 
 
 type Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -98,15 +107,22 @@ class ProfileIn(BaseModel):
 
 @router.get("/profiles")
 def profiles(db: Db) -> list[ProfileOut]:
-    """Every profile, by name — the picker's order."""
-    return [ProfileOut.of(profile) for profile in store.list_profiles(db)]
+    """Every profile, by name — the picker's order — each with its routine list."""
+    lists = store.list_routine_lists(db)
+    return [
+        ProfileOut.of(profile, lists.get(profile.id, []))
+        for profile in store.list_profiles(db)
+    ]
 
 
 @router.post("/profiles", status_code=201)
 def create_profile(body: ProfileIn, db: Db) -> ProfileOut:
-    """Add a profile from the picker's **+** tile. Names are unique."""
+    """Add a profile from the picker's **+** tile. Names are unique.
+
+    Its routine list starts empty: ＋ New routine offers the whole library.
+    """
     try:
-        return ProfileOut.of(store.add_profile(db, body.name))
+        return ProfileOut.of(store.add_profile(db, body.name), routine_ids=[])
     except sqlite3.IntegrityError:
         raise HTTPException(
             status_code=422, detail=f"a profile named {body.name!r} already exists"
@@ -176,9 +192,10 @@ class RoutineOut(BaseModel):
 
 @router.get("/routines")
 def routines(db: Db) -> list[RoutineOut]:
-    """Every routine that can be started, the same for everyone.
+    """List the library: every routine that can be started, whoever's list it's on.
 
-    Only the load is personal. A routine with no slots is left out, since there
+    The app shows each profile the ones in its `routine_ids`, and offers the rest
+    under ＋ New routine (ADR-0005). A routine with no slots is left out, since there
     would be nothing to perform.
     """
     names = store.list_routine_exercise_names(db)
@@ -279,22 +296,25 @@ def save_routine(
     return _editable(db, profile_id, routine_id)
 
 
-@router.delete("/profiles/{profile_id}/routines/{routine_id}", status_code=204)
-def delete_routine(
-    profile_id: int, routine_id: int, db: Db, confirmed: bool = False
-) -> None:
-    """Delete a routine as this profile; its recorded workouts are kept.
+@router.put("/profiles/{profile_id}/list/{routine_id}", status_code=204)
+def add_to_list(profile_id: int, routine_id: int, db: Db) -> None:
+    """Put a routine from the library on this profile's list; again is harmless."""
+    _require_profile(db, profile_id)
+    if store.get_routine(db, routine_id) is None:
+        raise HTTPException(status_code=404, detail=f"no routine {routine_id}")
+    store.add_to_list(db, profile_id, routine_id)
 
-    Answers `409` with the damage while someone else has a weight on it, until
-    asked again with `?confirmed=true`.
+
+@router.delete("/profiles/{profile_id}/list/{routine_id}", status_code=204)
+def remove_from_list(profile_id: int, routine_id: int, db: Db) -> None:
+    """Take a routine off this profile's list, and nobody else's (ADR-0005).
+
+    It stays in the library for anyone to add again, this profile's weights on it
+    included, and its recorded workouts are kept. Nothing deletes a routine.
+    Removing one that isn't on the list is harmless.
     """
     _require_profile(db, profile_id)
-    try:
-        editing.delete_routine(db, profile_id, routine_id, confirmed=confirmed)
-    except LookupError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from None
-    except DamageUnconfirmed as error:
-        raise _unconfirmed(error) from None
+    store.remove_from_list(db, profile_id, routine_id)
 
 
 def _unconfirmed(error: DamageUnconfirmed) -> HTTPException:

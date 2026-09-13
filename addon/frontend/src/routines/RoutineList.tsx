@@ -2,10 +2,11 @@ import type { Profile, RoutineSummary } from "../api";
 import { CircleButton } from "../ui/CircleButton";
 import { Page } from "../ui/Page";
 import { QuietButton } from "../ui/QuietButton";
-import { routineLine } from "./format";
+import { RoutineDetails } from "./RoutineDetails";
 
 interface RoutineListProps {
   readonly profile: Profile;
+  /** The routines on this profile's list, and no one else's (ADR-0005). */
   readonly routines: readonly RoutineSummary[];
   /** The routine whose workout is on its way; every Start waits until it lands. */
   readonly startingRoutineId: number | null;
@@ -18,7 +19,7 @@ interface RoutineListProps {
 }
 
 /**
- * Every routine, the same for everyone (#19). No history and no personal
+ * This profile's routine list (#19, ADR-0005). No history and no personal
  * weights here: a profile's load first appears at prep. Start is the one big
  * circle; editing is rare, so its ways in stay small (#48).
  */
@@ -54,17 +55,7 @@ export function RoutineList({
               key={routine.id}
               className="grid grid-cols-[1fr_auto] gap-x-[4vmin] gap-y-[3vmin] rounded-[4vmin] bg-white/[0.07] p-[4vmin]"
             >
-              <div className="col-span-2 min-w-0 sm:col-span-1">
-                <h2 className="text-[clamp(28px,7vmin,84px)] leading-none font-extrabold tracking-[-0.02em] break-words">
-                  {routine.name}
-                </h2>
-                <p className="mt-[1.5vmin] text-[clamp(20px,4.6vmin,50px)] font-bold tabular-nums">
-                  {routineLine(routine)}
-                </p>
-                <p className="mt-[1vmin] text-[clamp(16px,3.4vmin,36px)] opacity-70">
-                  {routine.exercise_names.join(" · ")}
-                </p>
-              </div>
+              <RoutineDetails routine={routine} className="col-span-2 sm:col-span-1" />
               <QuietButton
                 className="col-start-1 self-center justify-self-start sm:self-start"
                 aria-label={`Edit ${routine.name}`}

@@ -15,8 +15,16 @@ Carries an optional form-video URL, notes, and *optional* default reps. It carri
 **archived**, never deleted — their names live on inside recorded workouts.
 
 **Routine** — a reusable workout shape: an ordered list of slots, a round count, and
-one timing config. Routines are **shared** across profiles; the load is personal
-(see *personal weight*).
+one timing config. Every routine sits in one shared **routine library**, and is the
+same for everyone whose routine list it is on; the load is personal (see *personal
+weight*).
+
+**Routine list** — the routines one profile sees and trains from: the ones it
+created, and the ones it added from the routine library under ＋ New routine
+(ADR-0005). **Removing** a routine takes it off that one list: the routine stays in
+the library for anyone to add again, and the profile's weights on it and its
+recorded workouts are kept. A new profile's list starts empty.
+_Avoid_: delete (for taking a routine off a list)
 
 **Slot** — one position in a routine: an exercise and an **optional** rep target,
 and no weight. A slot's identity is its **position**, so the same exercise may
@@ -74,8 +82,9 @@ left reading zero for a routine of carries — see ADR-0002.
 
 ## Rules the model holds to
 
-1. **Routines are shared; load is personal.** At workout start each activity takes
-   the profile's personal weight for its slot, or no weight at all; nothing else
+1. **Routines are shared; lists and load are personal.** A routine is the same on
+   every routine list it is on (ADR-0005). At workout start each activity takes the
+   profile's personal weight for its slot, or no weight at all; nothing else
    supplies one. See ADR-0004.
 2. **History is a snapshot.** Editing or deleting a routine, renaming an exercise
    or changing a personal weight never rewrites a recorded workout. See ADR-0001.

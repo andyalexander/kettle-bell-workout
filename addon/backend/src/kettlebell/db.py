@@ -3,7 +3,7 @@
 The database lives at `/data/kettlebell.db` in production, which survives add-on
 updates and restarts, so the schema is versioned rather than recreated. Migrations
 are plain SQL keyed by `PRAGMA user_version`; Alembic would be a dependency and a
-second source of truth for six tables that change rarely.
+second source of truth for seven tables that change rarely.
 """
 
 from __future__ import annotations
@@ -94,7 +94,25 @@ ALTER TABLE slot DROP COLUMN weight;
 ALTER TABLE weight_override RENAME TO personal_weight;
 """
 
-MIGRATIONS: tuple[str, ...] = (_INITIAL_SCHEMA, _DROP_SOUND, _PERSONAL_WEIGHTS)
+# Each profile trains from its own routine list (ADR-0005). Every profile starts with
+# every routine there is, so nobody's list changes on the update.
+_ROUTINE_LISTS = """
+CREATE TABLE profile_routine (
+    profile_id INTEGER NOT NULL REFERENCES profile(id) ON DELETE CASCADE,
+    routine_id INTEGER NOT NULL REFERENCES routine(id) ON DELETE CASCADE,
+    PRIMARY KEY (profile_id, routine_id)
+) WITHOUT ROWID;
+
+INSERT INTO profile_routine (profile_id, routine_id)
+    SELECT profile.id, routine.id FROM profile CROSS JOIN routine;
+"""
+
+MIGRATIONS: tuple[str, ...] = (
+    _INITIAL_SCHEMA,
+    _DROP_SOUND,
+    _PERSONAL_WEIGHTS,
+    _ROUTINE_LISTS,
+)
 """Ordered migrations; a database at `user_version` N has applied the first N."""
 
 

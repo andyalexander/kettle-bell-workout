@@ -143,6 +143,22 @@ async def test_a_routine_is_created_with_the_creators_weights(
     assert [routine["name"] for routine in listed] == ["Friday"]
 
 
+async def _lists(client: AsyncClient) -> dict[str, list[int]]:
+    """Each profile's routine list, by name, as the app loads it with the picker."""
+    profiles = (await client.get("/api/profiles")).json()
+    return {profile["name"]: profile["routine_ids"] for profile in profiles}
+
+
+async def test_a_new_routine_goes_on_its_creators_list_alone(
+    client: AsyncClient, andrew: Profile, jo: Profile, swing: Exercise
+) -> None:
+    created = await client.post(
+        f"/api/profiles/{andrew.id}/routines", json=_draft(_slot(swing.id))
+    )
+
+    assert await _lists(client) == {"Andrew": [created.json()["id"]], "Jo": []}
+
+
 @pytest.mark.parametrize(
     "spoiled",
     [
@@ -419,49 +435,70 @@ async def test_a_new_slot_has_no_weight_for_anyone(
     ]
 
 
-async def test_deleting_a_routine_waits_for_confirming_and_keeps_its_history(
+async def test_a_routine_from_the_library_goes_on_my_list(
+    client: AsyncClient, andrew: Profile, jo: Profile, emom: Routine
+) -> None:
+    url = f"/api/profiles/{andrew.id}/list/{emom.id}"
+
+    added = await client.put(url)
+    again = await client.put(url)
+
+    assert (added.status_code, again.status_code) == (204, 204)
+    assert await _lists(client) == {"Andrew": [emom.id], "Jo": []}
+
+
+async def test_adding_an_unknown_routine_or_as_an_unknown_profile_is_not_found(
+    client: AsyncClient, andrew: Profile, emom: Routine
+) -> None:
+    unknown_routine = await client.put(f"/api/profiles/{andrew.id}/list/99")
+    unknown_profile = await client.put(f"/api/profiles/99/list/{emom.id}")
+
+    assert (unknown_routine.status_code, unknown_profile.status_code) == (404, 404)
+    assert await _lists(client) == {"Andrew": []}
+
+
+async def test_removing_a_routine_takes_it_off_my_list_alone(
     client: AsyncClient,
     db: sqlite3.Connection,
     andrew: Profile,
     jo: Profile,
     emom: Routine,
 ) -> None:
+    for profile in (andrew, jo):
+        store.add_to_list(db, profile.id, emom.id)
     swing_slot, _ = store.list_slots(db, emom.id)
     store.set_weight(db, andrew.id, swing_slot.id, 16)
-    store.set_weight(db, jo.id, swing_slot.id, 20)
-    fixed = await client.get(f"/api/profiles/{andrew.id}/routines/{emom.id}/workout")
-    finish = {
-        "profile_id": andrew.id,
-        "started_at": "2026-09-09T07:00:00.000Z",
-        "ended_at": "2026-09-09T07:08:00.000Z",
-        **fixed.json(),
-    }
-    assert (await client.post("/api/workouts", json=finish)).status_code == 201
-    url = f"/api/profiles/{andrew.id}/routines/{emom.id}"
+    url = f"/api/profiles/{andrew.id}/list/{emom.id}"
 
-    refused = await client.delete(url)
+    removed = await client.delete(url)
+    again = await client.delete(url)
 
-    assert refused.status_code == 409
-    # Andrew's own 16 kg goes too, but he is the one deleting it.
-    assert refused.json()["detail"]["damage"] == [_deleted(0, "Two-hand swing", 20.0)]
-    assert (await client.get(url)).status_code == 200
-
-    confirmed = await client.delete(url, params={"confirmed": True})
-
-    assert confirmed.status_code == 204
-    assert (await client.get(url)).status_code == 404
-    assert (await client.get("/api/routines")).json() == []
-    # A repeat finish finds the recorded workout: deleting its routine kept it.
-    repeat = await client.post("/api/workouts", json=finish)
-    assert (repeat.status_code, repeat.json()) == (200, {"id": 1})
+    assert (removed.status_code, again.status_code) == (204, 204)
+    assert await _lists(client) == {"Andrew": [], "Jo": [emom.id]}
+    # Still in the library to add back, with Andrew's weight where it was.
+    library = (await client.get("/api/routines")).json()
+    assert [routine["name"] for routine in library] == ["Monday"]
+    assert (await client.put(url)).status_code == 204
+    assert await _lifts(client, andrew, emom) == [
+        ("Two-hand swing", 16.0),
+        ("Double clean", None),
+    ]
 
 
-async def test_a_routine_nobody_else_has_weights_on_is_deleted_at_once(
+async def test_removing_as_an_unknown_profile_is_not_found(
+    client: AsyncClient, emom: Routine
+) -> None:
+    response = await client.delete(f"/api/profiles/99/list/{emom.id}")
+
+    assert response.status_code == 404
+
+
+async def test_a_routine_can_no_longer_be_deleted_for_everyone(
     client: AsyncClient, andrew: Profile, emom: Routine
 ) -> None:
     url = f"/api/profiles/{andrew.id}/routines/{emom.id}"
 
-    deleted = await client.delete(url)
-    unknown = await client.delete(url)
+    response = await client.delete(url)
 
-    assert (deleted.status_code, unknown.status_code) == (204, 404)
+    assert response.status_code == 405
+    assert (await client.get(url)).status_code == 200

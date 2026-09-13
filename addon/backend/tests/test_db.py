@@ -53,6 +53,27 @@ def test_dropping_sound_keeps_every_profile(tmp_path: Path) -> None:
     old.close()
 
 
+def test_routine_lists_start_with_every_routine_for_everyone(tmp_path: Path) -> None:
+    # A database from before each profile had its own routine list, as the Pi's is.
+    old = connect(tmp_path / "kettlebell.db")
+    _ = old.executescript(
+        f"BEGIN;\n{MIGRATIONS[0]}\n{MIGRATIONS[1]}\n{MIGRATIONS[2]}\n"
+        "PRAGMA user_version = 3;\n"
+        "INSERT INTO profile (name) VALUES ('Andrew'), ('Jo');\n"
+        "INSERT INTO routine (name, rounds, work_seconds, rest_seconds)"
+        " VALUES ('Starter circuit', 3, 40, 20), ('Friday', 3, 40, 20);\n"
+        "COMMIT;"
+    )
+
+    assert apply_migrations(old) == len(MIGRATIONS)
+    # Nobody's list changes on the update (ADR-0005).
+    rows = old.execute(
+        "SELECT profile_id, routine_id FROM profile_routine ORDER BY 1, 2"
+    )
+    assert [tuple(row) for row in rows] == [(1, 1), (1, 2), (2, 1), (2, 2)]
+    old.close()
+
+
 def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
     # `table` is always a literal from the test, never input.
     return {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
@@ -84,7 +105,7 @@ def test_personal_weights_drop_every_shared_weight(tmp_path: Path) -> None:
     old.close()
 
 
-def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
+def test_the_seven_tables_exist(db: sqlite3.Connection) -> None:
     names = {
         row["name"]
         for row in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
@@ -95,6 +116,7 @@ def test_the_six_tables_exist(db: sqlite3.Connection) -> None:
         "routine",
         "slot",
         "personal_weight",
+        "profile_routine",
         "workout",
     } <= names
 

@@ -16,8 +16,8 @@ interface EditorTabsProps {
   readonly problem: string | null;
   readonly update: (change: (draft: Draft) => Draft) => void;
   readonly onPick: (target: PickTarget) => void;
-  /** Absent for a routine not yet saved: there is nothing to delete. */
-  readonly onDelete?: () => void;
+  /** Absent for a routine not yet saved: there is nothing to remove. */
+  readonly onRemove?: () => void;
 }
 
 // Order and Exercises are one tab: reordering and swapping happen together (#48).
@@ -36,7 +36,7 @@ const FIELD =
  * The routine editor as prototyped (#48, variant C): one job at a time, in three
  * tabs. A new routine opens on Routine, since it has nothing to weigh yet.
  */
-export function EditorTabs({ draft, problem, update, onPick, onDelete }: EditorTabsProps) {
+export function EditorTabs({ draft, problem, update, onPick, onRemove }: EditorTabsProps) {
   const [tab, setTab] = useState<Tab>(draft.id === null ? "Routine" : "Weights");
 
   return (
@@ -65,7 +65,7 @@ export function EditorTabs({ draft, problem, update, onPick, onDelete }: EditorT
       )}
       {tab === "Weights" && <WeightsTab draft={draft} update={update} onPick={onPick} />}
       {tab === "Exercises" && <ExercisesTab draft={draft} update={update} onPick={onPick} />}
-      {tab === "Routine" && <RoutineTab draft={draft} update={update} onDelete={onDelete} />}
+      {tab === "Routine" && <RoutineTab draft={draft} update={update} onRemove={onRemove} />}
     </>
   );
 }
@@ -203,9 +203,9 @@ const TIMING = [
   { field: "rest", label: "Rest (s)" },
 ] as const;
 
-type RoutineTabProps = Pick<EditorTabsProps, "draft" | "update" | "onDelete">;
+type RoutineTabProps = Pick<EditorTabsProps, "draft" | "update" | "onRemove">;
 
-function RoutineTab({ draft, update, onDelete }: RoutineTabProps) {
+function RoutineTab({ draft, update, onRemove }: RoutineTabProps) {
   return (
     <section className={`${WIDE} flex flex-col gap-[4vmin]`}>
       <label className="flex w-full flex-col gap-[1.5vmin]">
@@ -241,9 +241,9 @@ function RoutineTab({ draft, update, onDelete }: RoutineTabProps) {
           </label>
         ))}
       </div>
-      {onDelete && (
-        <CircleButton variant="outline" className="mt-[4vmin] self-center" onClick={onDelete}>
-          Delete
+      {onRemove && (
+        <CircleButton variant="outline" className="mt-[4vmin] self-center" onClick={onRemove}>
+          Remove
         </CircleButton>
       )}
     </section>
