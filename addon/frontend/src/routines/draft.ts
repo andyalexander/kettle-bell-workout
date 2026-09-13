@@ -103,6 +103,21 @@ export const newDraft = (): Draft => ({
 });
 
 /**
+ * Whether Back would lose an edit: the draft now differs from the one opened.
+ * An edit put back again is no change, and React's keys are never compared.
+ */
+export const isChanged = (opened: Draft, current: Draft): boolean =>
+  JSON.stringify(comparable(opened)) !== JSON.stringify(comparable(current));
+
+const comparable = ({ name, rounds, work, rest, slots }: Draft) => ({
+  name,
+  rounds,
+  work,
+  rest,
+  slots: slots.map(({ origin, exercise, weight }) => [origin, exercise.id, weight]),
+});
+
+/**
  * Why Save can't send this draft yet, or null when it can. The server has the
  * last word, on a taken name for one; this only spares a round trip and a
  * validator's wording.

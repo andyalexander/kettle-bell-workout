@@ -6,6 +6,7 @@ import {
   addSlot,
   damageLine,
   draftOf,
+  isChanged,
   moveSlot,
   newDraft,
   problemWith,
@@ -135,6 +136,43 @@ describe("a ⚠️ line", () => {
     expect(damageLine({ ...jos, weight: 12.5, effect: "deleted", now_exercise_name: null })).toBe(
       "Jo's 12.5 kg on Thruster will be deleted.",
     );
+  });
+});
+
+describe("whether Back would lose something", () => {
+  const opened = draftOf(starter);
+
+  it("is no for a routine left as opened", () => {
+    expect(isChanged(opened, opened)).toBe(false);
+  });
+
+  it("is no for the same routine opened twice, whatever React keys it got", () => {
+    expect(isChanged(opened, draftOf(starter))).toBe(false);
+  });
+
+  it("is no once a change has been put back", () => {
+    expect(isChanged(opened, moveSlot(moveSlot(opened, 0, 1), 1, -1))).toBe(false);
+    expect(isChanged(opened, setWeight(setWeight(opened, 0, "14"), 0, "12"))).toBe(false);
+  });
+
+  it.each([
+    ["a rename", { ...opened, name: "Morning circuit" }],
+    ["rounds", { ...opened, rounds: "4" }],
+    ["work", { ...opened, work: "45" }],
+    ["rest", { ...opened, rest: "15" }],
+    ["my weight", setWeight(opened, 1, "8")],
+    ["a reorder", moveSlot(opened, 0, 1)],
+    ["a swap", swapExercise(opened, 1, clean)],
+    ["an added exercise", addSlot(opened, clean)],
+    ["a removed exercise", removeSlot(opened, 2)],
+  ])("is yes after %s", (_, edited) => {
+    expect(isChanged(opened, edited)).toBe(true);
+  });
+
+  it("is yes for a new routine once it has a name", () => {
+    const fresh = newDraft();
+    expect(isChanged(fresh, fresh)).toBe(false);
+    expect(isChanged(fresh, { ...fresh, name: "Evening" })).toBe(true);
   });
 });
 

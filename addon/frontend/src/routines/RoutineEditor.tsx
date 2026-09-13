@@ -17,6 +17,7 @@ import {
   addSlot,
   damageLine,
   draftOf,
+  isChanged,
   newDraft,
   problemWith,
   saveBody,
@@ -39,19 +40,30 @@ interface RoutineEditorProps {
 
 interface Loaded {
   readonly draft: Draft;
+  /** The draft as it opened, so Back can tell whether it would lose an edit. */
+  readonly opened: Draft;
   readonly library: readonly Exercise[];
 }
 
 const KEPT = "Recorded workouts are kept.";
+const UNSAVED = "Your changes haven't been saved.";
 
 /**
- * The ⚠️ before a save or delete goes through. A delete always asks first; the
- * server adds the lines of anyone else's weights it would lose, and the answer
- * after those is sent confirmed.
+ * The ⚠️ before a save, delete or discard goes through. A delete always asks
+ * first; the server adds the lines of anyone else's weights it would lose, and
+ * the answer after those is sent confirmed. Back asks only when it would lose an
+ * edit.
  */
 type Warning =
   | { readonly action: "save"; readonly lines: readonly string[] }
-  | { readonly action: "delete"; readonly lines: readonly string[]; readonly confirmed: boolean };
+  | { readonly action: "delete"; readonly lines: readonly string[]; readonly confirmed: boolean }
+  | { readonly action: "discard"; readonly lines: readonly string[] };
+
+const WARNING_TEXT = {
+  save: { title: "⚠️ This moves someone's weights", confirmLabel: "Save anyway" },
+  delete: { title: "⚠️ Delete this routine?", confirmLabel: "Delete" },
+  discard: { title: "⚠️ Leave without saving?", confirmLabel: "Discard", backLabel: "Keep editing" },
+} as const;
 
 type Overlay =
   | { readonly kind: "picker"; readonly target: PickTarget }
@@ -71,7 +83,7 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
     let live = true;
     const draft = routineId === null ? Promise.resolve(newDraft()) : getRoutine(profile.id, routineId).then(draftOf);
     Promise.all([draft, listExercises()]).then(
-      ([opened, library]) => live && setLoaded({ draft: opened, library }),
+      ([opened, library]) => live && setLoaded({ draft: opened, opened, library }),
       (error: unknown) => live && setProblem(describeFailure(error)),
     );
     return () => {
@@ -154,8 +166,15 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
     handlePicked(target, exercise);
   };
 
+  const handleBack = () => {
+    if (isChanged(loaded.opened, draft)) {
+      setOverlay({ kind: "warning", action: "discard", lines: [UNSAVED] });
+    } else {
+      onClose(false);
+    }
+  };
+
   const savedId = draft.id;
-  const deleting = overlay?.kind === "warning" && overlay.action === "delete";
 
   return (
     <>
@@ -163,7 +182,7 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
       <div hidden={overlay !== null}>
         <Page
           title={draft.name.trim() || fallbackTitle}
-          onBack={() => onClose(false)}
+          onBack={handleBack}
           action={
             <CircleButton disabled={busy} onClick={() => handleSave(false)}>
               {busy ? "…" : "Save"}
@@ -194,13 +213,13 @@ export function RoutineEditor({ profile, routineId, routineName, onClose }: Rout
       )}
       {overlay?.kind === "warning" && (
         <WarningScreen
-          title={deleting ? "⚠️ Delete this routine?" : "⚠️ This moves someone's weights"}
+          {...WARNING_TEXT[overlay.action]}
           lines={overlay.lines}
-          confirmLabel={deleting ? "Delete" : "Save anyway"}
           busy={busy}
           problem={problem}
           onConfirm={() => {
             if (overlay.action === "save") handleSave(true);
+            else if (overlay.action === "discard") onClose(false);
             else if (savedId !== null) handleDelete(savedId, overlay.confirmed);
           }}
           onBack={() => {

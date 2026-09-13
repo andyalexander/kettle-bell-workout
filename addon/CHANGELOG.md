@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- **Back asks before losing an edit.** Leaving the routine editor with unsaved
+  changes, or leaving ＋ New exercise with a name typed, now asks first:
+  **Keep editing** returns you to where you were, **Discard** leaves. Back
+  with nothing changed still goes straight back.
+
 ## 0.6.0
 
 - **Edit routines in the app.** Each routine has a small **Edit** under it,
