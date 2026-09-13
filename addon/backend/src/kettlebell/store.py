@@ -21,7 +21,9 @@ __all__ = [
     "archive_exercise",
     "add_exercise",
     "add_routine",
+    "clear_slot_weights",
     "clear_weight",
+    "delete_routine",
     "get_avatar",
     "get_exercise",
     "get_profile",
@@ -36,6 +38,7 @@ __all__ = [
     "set_slots",
     "set_weight",
     "update_exercise",
+    "update_routine",
 ]
 
 
@@ -223,6 +226,33 @@ def add_routine(
     )
 
 
+def update_routine(
+    connection: sqlite3.Connection,
+    routine_id: int,
+    *,
+    name: str,
+    rounds: int,
+    work_seconds: int,
+    rest_seconds: int,
+) -> None:
+    """Change a routine's name and shape. A workout already recorded keeps its own."""
+    with transaction(connection):
+        _ = connection.execute(
+            "UPDATE routine SET name = ?, rounds = ?, work_seconds = ?,"
+            " rest_seconds = ? WHERE id = ?",
+            (name, rounds, work_seconds, rest_seconds, routine_id),
+        )
+
+
+def delete_routine(connection: sqlite3.Connection, routine_id: int) -> None:
+    """Delete a routine, its slots, and every personal weight on them.
+
+    Recorded workouts stay: `workout.routine_id` has no foreign key (ADR-0001).
+    """
+    with transaction(connection):
+        _ = connection.execute("DELETE FROM routine WHERE id = ?", (routine_id,))
+
+
 def list_routines(connection: sqlite3.Connection) -> list[Routine]:
     """Every routine, by name — routines are shared across profiles."""
     rows = connection.execute("SELECT * FROM routine ORDER BY name").fetchall()
@@ -311,6 +341,14 @@ def clear_weight(connection: sqlite3.Connection, profile_id: int, slot_id: int) 
         _ = connection.execute(
             "DELETE FROM personal_weight WHERE profile_id = ? AND slot_id = ?",
             (profile_id, slot_id),
+        )
+
+
+def clear_slot_weights(connection: sqlite3.Connection, slot_id: int) -> None:
+    """Drop every profile's weight for a slot, as when its exercise is swapped."""
+    with transaction(connection):
+        _ = connection.execute(
+            "DELETE FROM personal_weight WHERE slot_id = ?", (slot_id,)
         )
 
 

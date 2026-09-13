@@ -1,7 +1,11 @@
-"""The JSON API for the workout flow — picking a profile, a routine, and training.
+"""The JSON API: picking a profile, a routine, training, and editing routines.
 
 The iPad carries a workout from start to finish (ADR-0003): starting one is a read,
 finishing it is the only write, and aborting makes no call at all.
+
+Editing is done as one profile (`kettlebell.editing`): the editor sees and sets that
+profile's weights, and a save or delete that would shift or delete anyone else's
+answers `409` until it is confirmed.
 
 Handlers are plain `def`, so FastAPI runs each in its threadpool, and every request
 gets a connection of its own, closed once the response is done. The database path
@@ -12,6 +16,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Callable, Generator
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Self
@@ -28,12 +33,22 @@ from pydantic import (
     AwareDatetime,
     BaseModel,
     Field,
+    NonNegativeFloat,
+    NonNegativeInt,
+    PositiveInt,
     StringConstraints,
     model_validator,
 )
 
-from kettlebell import store, workouts
+from kettlebell import editing, store, workouts
 from kettlebell.db import connect
+from kettlebell.editing import (
+    DamageUnconfirmed,
+    Draft,
+    DraftSlot,
+    EditableRoutine,
+    InvalidDraft,
+)
 from kettlebell.models import Activity, Profile, RecordedWorkout, Routine, Workout
 
 __all__ = ["OnRecorded", "router"]
@@ -71,10 +86,14 @@ class ProfileOut(BaseModel):
         return cls(id=profile.id, name=profile.name, avatar_url=None)
 
 
+type Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+"""A name as typed: surrounding spaces dropped, and never blank."""
+
+
 class ProfileIn(BaseModel):
     """A new profile: a name alone. Avatars come later."""
 
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    name: Name
 
 
 @router.get("/profiles")
@@ -92,6 +111,40 @@ def create_profile(body: ProfileIn, db: Db) -> ProfileOut:
         raise HTTPException(
             status_code=422, detail=f"a profile named {body.name!r} already exists"
         ) from None
+
+
+class ExerciseOut(BaseModel):
+    """A library exercise as the editor's picker shows it: a name, and no weight."""
+
+    id: int
+    name: str
+
+
+@router.get("/exercises")
+def exercises(db: Db) -> list[ExerciseOut]:
+    """List the library's active exercises by name; archived ones can't be picked."""
+    return [
+        ExerciseOut(id=exercise.id, name=exercise.name)
+        for exercise in store.list_exercises(db)
+    ]
+
+
+class ExerciseIn(BaseModel):
+    """A new library exercise, added from the picker by name only."""
+
+    name: Name
+
+
+@router.post("/exercises", status_code=201)
+def create_exercise(body: ExerciseIn, db: Db) -> ExerciseOut:
+    """Add an exercise to the shared library. Names are unique, archived included."""
+    try:
+        added = store.add_exercise(db, body.name, default_reps=None)
+    except sqlite3.IntegrityError:
+        raise HTTPException(
+            status_code=422, detail=f"an exercise named {body.name!r} already exists"
+        ) from None
+    return ExerciseOut(id=added.id, name=added.name)
 
 
 class RoutineOut(BaseModel):
@@ -134,6 +187,120 @@ def routines(db: Db) -> list[RoutineOut]:
         for routine in store.list_routines(db)
         if routine.id in names
     ]
+
+
+@router.get("/profiles/{profile_id}/routines/{routine_id}")
+def editable_routine(profile_id: int, routine_id: int, db: Db) -> EditableRoutine:
+    """Read a routine for the editor, with this profile's weights and nobody else's."""
+    return _editable(db, profile_id, routine_id)
+
+
+def _editable(
+    db: sqlite3.Connection, profile_id: int, routine_id: int
+) -> EditableRoutine:
+    """Read a routine as `profile_id`; 404 when the profile or routine is gone."""
+    _require_profile(db, profile_id)
+    routine = editing.read_routine(db, profile_id, routine_id)
+    if routine is None:
+        raise HTTPException(status_code=404, detail=f"no routine {routine_id}")
+    return routine
+
+
+def _require_profile(db: sqlite3.Connection, profile_id: int) -> None:
+    """Refuse a request made as a profile that doesn't exist."""
+    if store.get_profile(db, profile_id) is None:
+        raise HTTPException(status_code=404, detail=f"no profile {profile_id}")
+
+
+class SlotIn(BaseModel):
+    """A slot as the editor saves it — see `kettlebell.editing.DraftSlot`."""
+
+    exercise_id: int
+    origin: NonNegativeInt | None = None
+    weight: NonNegativeFloat | None = None
+
+
+class RoutineIn(BaseModel):
+    """A routine as the editor saves it, with the editing profile's weights."""
+
+    name: Name
+    rounds: PositiveInt
+    work_seconds: PositiveInt
+    rest_seconds: NonNegativeInt
+    slots: list[SlotIn]
+    # True once the editor has shown the ⚠️ and the user chose *Save anyway*.
+    confirmed: bool = False
+
+    def to_draft(self) -> Draft:
+        """Restate the edit in the domain's terms."""
+        return Draft(
+            name=self.name,
+            rounds=self.rounds,
+            work_seconds=self.work_seconds,
+            rest_seconds=self.rest_seconds,
+            slots=tuple(
+                DraftSlot(exercise_id=s.exercise_id, origin=s.origin, weight=s.weight)
+                for s in self.slots
+            ),
+        )
+
+
+@router.post("/profiles/{profile_id}/routines", status_code=201)
+def create_routine(profile_id: int, body: RoutineIn, db: Db) -> EditableRoutine:
+    """Create a routine from the editor, the creator's weights set as theirs."""
+    _require_profile(db, profile_id)
+    try:
+        routine_id = editing.create_routine(db, profile_id, body.to_draft())
+    except InvalidDraft as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    return _editable(db, profile_id, routine_id)
+
+
+@router.put("/profiles/{profile_id}/routines/{routine_id}")
+def save_routine(
+    profile_id: int, routine_id: int, body: RoutineIn, db: Db
+) -> EditableRoutine:
+    """Save an edit made as this profile. The last save wins.
+
+    A save that would shift or delete someone else's weight answers `409` with
+    the damage and writes nothing, until it is sent again with `confirmed`.
+    """
+    _require_profile(db, profile_id)
+    try:
+        editing.save_routine(
+            db, profile_id, routine_id, body.to_draft(), confirmed=body.confirmed
+        )
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from None
+    except InvalidDraft as error:
+        raise HTTPException(status_code=422, detail=str(error)) from None
+    except DamageUnconfirmed as error:
+        raise _unconfirmed(error) from None
+    return _editable(db, profile_id, routine_id)
+
+
+@router.delete("/profiles/{profile_id}/routines/{routine_id}", status_code=204)
+def delete_routine(
+    profile_id: int, routine_id: int, db: Db, confirmed: bool = False
+) -> None:
+    """Delete a routine as this profile; its recorded workouts are kept.
+
+    Answers `409` with the damage while someone else has a weight on it, until
+    asked again with `?confirmed=true`.
+    """
+    _require_profile(db, profile_id)
+    try:
+        editing.delete_routine(db, profile_id, routine_id, confirmed=confirmed)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from None
+    except DamageUnconfirmed as error:
+        raise _unconfirmed(error) from None
+
+
+def _unconfirmed(error: DamageUnconfirmed) -> HTTPException:
+    """Build the `409` that asks the editor to show the ⚠️ before trying again."""
+    damage = [asdict(item) for item in error.damage]
+    return HTTPException(status_code=409, detail={"damage": damage})
 
 
 @router.get("/profiles/{profile_id}/routines/{routine_id}/workout")

@@ -136,7 +136,14 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
 
 @contextmanager
 def transaction(connection: sqlite3.Connection) -> Generator[sqlite3.Connection]:
-    """Run a block in one transaction, rolling back if it raises."""
+    """Run a block in one transaction, rolling back if it raises.
+
+    Inside a transaction already open, the block joins it, and the outer one commits
+    or rolls back the whole: that is how several store writes make one atomic edit.
+    """
+    if connection.in_transaction:
+        yield connection
+        return
     _ = connection.execute("BEGIN")
     try:
         yield connection
