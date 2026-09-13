@@ -360,7 +360,8 @@ export function VariantB(props: EditorProps) {
 
 // --- C · Modes ----------------------------------------------------------------
 
-const MODES = ["Weights", "Order", "Exercises", "Routine"] as const;
+// Order and Exercises are one tab: reordering and swapping happen together (#48).
+const MODES = ["Weights", "Exercises", "Routine"] as const;
 type Mode = (typeof MODES)[number];
 
 export function VariantC(props: EditorProps) {
@@ -370,13 +371,13 @@ export function VariantC(props: EditorProps) {
 
   return (
     <Page title={title} onBack={onCancel}>
-      <nav className={`${WIDE} grid grid-cols-2 gap-[2vmin] sm:grid-cols-4`}>
+      <nav className={`${WIDE} grid grid-cols-3 gap-[2vmin]`}>
         {MODES.map((each) => (
           <button
             key={each}
             type="button"
             onClick={() => setMode(each)}
-            className={`min-h-[64px] rounded-[3vmin] py-[3vmin] text-[clamp(18px,4.4vmin,40px)] font-extrabold tracking-[0.06em] uppercase active:scale-95 ${each === mode ? "bg-white text-black" : "bg-white/10"}`}
+            className={`min-h-[64px] rounded-[3vmin] py-[3vmin] text-[clamp(14px,3.8vmin,40px)] font-extrabold tracking-[0.04em] uppercase active:scale-95 ${each === mode ? "bg-white text-black" : "bg-white/10"}`}
           >
             {each}
           </button>
@@ -409,29 +410,26 @@ export function VariantC(props: EditorProps) {
                     </div>
                   </>
                 )}
-                {mode === "Order" && (
-                  <>
-                    <SquareButton label="Move up" disabled={index === 0} onClick={() => handle.move(-1)}>
-                      ▲
-                    </SquareButton>
-                    <span className="min-w-0 flex-1 text-center">
-                      <span className={`${NAME} block`}>{slot.exercise.name}</span>
-                      <span className={`${LABEL} mt-[1vmin] block`}>{shownWeight(slot.weight)}</span>
-                    </span>
-                    <SquareButton label="Move down" disabled={index === last} onClick={() => handle.move(1)}>
-                      ▼
-                    </SquareButton>
-                  </>
-                )}
                 {mode === "Exercises" && (
                   <>
+                    {/* Stacked, so the name keeps the row's width on a phone. */}
+                    <div className="flex flex-col gap-[2vmin]">
+                      <SquareButton label="Move up" disabled={index === 0} onClick={() => handle.move(-1)}>
+                        ▲
+                      </SquareButton>
+                      <SquareButton label="Move down" disabled={index === last} onClick={() => handle.move(1)}>
+                        ▼
+                      </SquareButton>
+                    </div>
                     <button
                       type="button"
                       onClick={() => onPick({ kind: "swap", index })}
-                      className="flex min-w-0 flex-1 items-center gap-[3vmin] text-left"
+                      className="flex min-w-0 flex-1 flex-col items-start gap-[1.5vmin] text-left"
                     >
-                      {name}
-                      <span className="text-[clamp(22px,5vmin,48px)] opacity-50">⇄</span>
+                      <span className={NAME}>
+                        {slot.exercise.name} <span className="text-[0.6em] opacity-50">⇄</span>
+                      </span>
+                      <span className={LABEL}>{shownWeight(slot.weight)}</span>
                     </button>
                     <SquareButton label="Remove" onClick={handle.remove}>
                       ✕
