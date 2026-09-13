@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Activity, Workout } from "./api";
-import { readableDetail, toTiming } from "./api";
+import type { Activity, Damage, Workout } from "./api";
+import { ApiError, damageIn, readableDetail, toTiming } from "./api";
 
 const activity = (position: number, exercise_name: string): Activity => ({
   position,
@@ -56,5 +56,28 @@ describe("a refusal, as the screen shows it", () => {
 
   it("falls back to JSON for a shape it doesn't know", () => {
     expect(readableDetail({ odd: true })).toBe('{"odd":true}');
+  });
+});
+
+describe("a save refused for someone else's weights", () => {
+  const damage: Damage = {
+    profile_name: "Jo",
+    position: 0,
+    exercise_name: "Thruster",
+    weight: 10,
+    effect: "shifted",
+    now_exercise_name: "Halo",
+  };
+
+  it("reads the ⚠️ lines out of a 409", () => {
+    expect(damageIn(new ApiError(409, "…", { damage: [damage] }))).toEqual([damage]);
+  });
+
+  it("is not a 409 for any other refusal", () => {
+    expect(damageIn(new ApiError(422, "a routine named 'X' already exists", "…"))).toBeNull();
+  });
+
+  it("is not a 409 when the Pi can't be reached", () => {
+    expect(damageIn(new TypeError("Load failed"))).toBeNull();
   });
 });

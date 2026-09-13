@@ -59,6 +59,61 @@ export interface FinishedWorkout extends Workout {
   readonly ended_at: string;
 }
 
+// --- the routine editor (issue #49, ADR-0004) --------------------------------
+
+/** A library exercise: a name, and no weight. */
+export interface Exercise {
+  readonly id: number;
+  readonly name: string;
+}
+
+/** One slot as the editor shows it: an exercise, at the editing profile's weight. */
+export interface EditableSlot {
+  readonly exercise_id: number;
+  readonly exercise_name: string;
+  /** Kilograms; the editing profile's own, or null for none. */
+  readonly weight: number | null;
+}
+
+/** A routine as one profile edits it. Nobody else's weight is in here. */
+export interface EditableRoutine {
+  readonly id: number;
+  readonly name: string;
+  readonly rounds: number;
+  readonly work_seconds: number;
+  readonly rest_seconds: number;
+  readonly slots: readonly EditableSlot[];
+}
+
+/** A slot as Save sends it. */
+export interface SlotIn {
+  readonly exercise_id: number;
+  /** The slot's position as saved, or null when added in this edit: a reorder, not a swap. */
+  readonly origin: number | null;
+  readonly weight: number | null;
+}
+
+/** A routine as Save sends it, with the editing profile's weights. */
+export interface RoutineIn {
+  readonly name: string;
+  readonly rounds: number;
+  readonly work_seconds: number;
+  readonly rest_seconds: number;
+  readonly slots: readonly SlotIn[];
+}
+
+/** Someone else's weight that a save or delete would move or lose: one ⚠️ line. */
+export interface Damage {
+  readonly profile_name: string;
+  readonly position: number;
+  /** What the weight is on now. */
+  readonly exercise_name: string;
+  readonly weight: number;
+  readonly effect: "shifted" | "deleted";
+  /** What it would fall on after the save; null when it would be deleted. */
+  readonly now_exercise_name: string | null;
+}
+
 /** The timer's view of a workout — the one place the wire meets the engine. */
 export function toTiming(workout: Workout): WorkoutTiming {
   return {
@@ -74,14 +129,23 @@ export function toTiming(workout: Workout): WorkoutTiming {
 /** How long any call may wait on the Pi before it counts as failed. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
-/** A call the server refused, carrying its `detail`. */
+/** A call the server refused: its reason fit to show, and its `detail` as sent. */
 export class ApiError extends Error {
   readonly status: number;
+  readonly detail: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, detail: unknown = null) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
+}
+
+/** The ⚠️ lines a save or delete was refused with, or null for any other failure. */
+export function damageIn(error: unknown): readonly Damage[] | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  const { damage } = (error.detail ?? {}) as { damage?: readonly Damage[] };
+  return damage ?? null;
 }
 
 /** What to tell someone a call failed: the server's reason, or that the Pi is away. */
@@ -98,16 +162,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
-  if (!response.ok) throw new ApiError(response.status, await detailOf(response));
+  if (!response.ok) throw await refusal(response);
+  // A delete answers 204 with no body to parse.
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
-async function detailOf(response: Response): Promise<string> {
+async function refusal(response: Response): Promise<ApiError> {
   try {
     const { detail } = (await response.json()) as { detail?: unknown };
-    return readableDetail(detail);
+    return new ApiError(response.status, readableDetail(detail), detail);
   } catch {
-    return response.statusText;
+    return new ApiError(response.status, response.statusText);
   }
 }
 
@@ -138,6 +204,46 @@ export const listRoutines = () => request<RoutineSummary[]>("GET", "/routines");
 /** Fix a workout to perform. A read: nothing is written until it is finished. */
 export const startWorkout = (profileId: number, routineId: number) =>
   request<Workout>("GET", `/profiles/${profileId}/routines/${routineId}/workout`);
+
+/** The active library, by name. */
+export const listExercises = () => request<Exercise[]>("GET", "/exercises");
+
+/** Add to the shared library by name alone; a taken name is refused. */
+export const createExercise = (name: string) =>
+  request<Exercise>("POST", "/exercises", { name });
+
+/** A routine as `profileId` edits it, with their weights and nobody else's. */
+export const getRoutine = (profileId: number, routineId: number) =>
+  request<EditableRoutine>("GET", `/profiles/${profileId}/routines/${routineId}`);
+
+/** A new routine, with the creator's weights. Nobody else has any to disturb. */
+export const createRoutine = (profileId: number, routine: RoutineIn) =>
+  request<EditableRoutine>("POST", `/profiles/${profileId}/routines`, routine);
+
+/**
+ * Save an edit as `profileId`. Unconfirmed, a save that would move or lose
+ * someone else's weight is refused with a `409`: read it with `damageIn`.
+ */
+export const saveRoutine = (
+  profileId: number,
+  routineId: number,
+  routine: RoutineIn,
+  confirmed: boolean,
+) =>
+  request<EditableRoutine>("PUT", `/profiles/${profileId}/routines/${routineId}`, {
+    ...routine,
+    confirmed,
+  });
+
+/** Delete as `profileId`; recorded workouts are kept. A `409` carries the damage. */
+export async function deleteRoutine(
+  profileId: number,
+  routineId: number,
+  confirmed: boolean,
+): Promise<void> {
+  const query = confirmed ? "?confirmed=true" : "";
+  await request<null>("DELETE", `/profiles/${profileId}/routines/${routineId}${query}`);
+}
 
 /** Record a finish; `201` and a retry's `200` both mean the server has it. */
 async function recordWorkout(finish: FinishedWorkout): Promise<void> {

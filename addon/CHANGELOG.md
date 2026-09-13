@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0
+
+- **Edit routines in the app.** Each routine has a small **Edit** under it,
+  and **＋ New routine** sits at the bottom of the list. The editor has three
+  tabs: **Weights** for your own weight on each exercise, **Exercises** to
+  reorder, remove, swap or add them (＋ New exercise adds one to the library
+  by name), and **Routine** for the name, rounds, timing, and Delete.
+  Deleting a routine keeps its recorded workouts.
+- **Weights belong only to people.** A routine and its exercises no longer
+  carry a weight: each person sets their own, and an exercise with none trains
+  without a weight. **The old shared weights are dropped by this update**, so
+  set yours in the editor before your next workout.
+- An edit that would move or delete **someone else's** weight asks first, and
+  **Go back** leaves the routine as it was.
+
 ## 0.5.5
 
 - **The app is silent.** No beeps at all, whatever the profile: the screen's
